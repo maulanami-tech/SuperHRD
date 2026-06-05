@@ -49,6 +49,9 @@ export function useCandidates({
     }
   }, [search, status]);
 
+  const fetchRef = useRef(fetchCandidates);
+  fetchRef.current = fetchCandidates;
+
   useEffect(() => {
     isFirstLoad.current = true;
     setIsLoading(true);
@@ -56,9 +59,9 @@ export function useCandidates({
   }, [fetchCandidates]);
 
   useEffect(() => {
-    const interval = setInterval(fetchCandidates, pollingInterval);
+    const interval = setInterval(() => fetchRef.current(), pollingInterval);
     return () => clearInterval(interval);
-  }, [fetchCandidates, pollingInterval]);
+  }, [pollingInterval]);
 
   return { candidates, isLoading, error, refetch: fetchCandidates };
 }

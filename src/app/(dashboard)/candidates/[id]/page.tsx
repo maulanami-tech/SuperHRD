@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -36,7 +36,7 @@ export default function CandidateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchCandidate() {
+  const fetchCandidate = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -49,18 +49,21 @@ export default function CandidateDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  const fetchRef = useRef(fetchCandidate);
+  fetchRef.current = fetchCandidate;
 
   useEffect(() => {
     fetchCandidate();
-  }, [id]);
+  }, [fetchCandidate]);
 
   useEffect(() => {
     if (
       candidate?.status === "processing" ||
       candidate?.status === "pending"
     ) {
-      const interval = setInterval(fetchCandidate, 10000);
+      const interval = setInterval(() => fetchRef.current(), 10000);
       return () => clearInterval(interval);
     }
   }, [candidate?.status]);

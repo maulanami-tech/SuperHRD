@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileText, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -44,8 +45,16 @@ export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
     maxFiles: 1,
     onDropRejected: (rejections) => {
       const err = rejections[0]?.errors[0];
-      if (err?.code === "file-too-large") {
-        onFileChange(null);
+      onFileChange(null);
+      switch (err?.code) {
+        case "file-invalid-type":
+          toast.error("Invalid file type. Only PDF and DOCX are accepted.");
+          break;
+        case "file-too-large":
+          toast.error("File is too large. Maximum size is 10MB.");
+          break;
+        default:
+          toast.error("File was rejected. Please try another file.");
       }
     },
   });
