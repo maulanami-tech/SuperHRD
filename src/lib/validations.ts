@@ -22,16 +22,16 @@ export const fileSchema = z.object({
 
 export const n8nCallbackSchema = z.object({
   runId: z.string().min(1),
-  overallScore: z.number(),
-  summary: z.string(),
+  overallScore: z.number().min(0).max(100),
+  summary: z.string().max(5000),
   criteria: z.array(
     z.object({
-      name: z.string(),
-      score: z.number(),
-      notes: z.string(),
+      name: z.string().max(200),
+      score: z.number().min(0).max(100),
+      notes: z.string().max(2000),
     })
-  ),
-  rawResponse: z.string().optional(),
+  ).max(20),
+  rawResponse: z.string().max(50000).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

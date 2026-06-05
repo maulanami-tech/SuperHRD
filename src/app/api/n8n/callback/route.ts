@@ -23,58 +23,47 @@ export async function POST(req: NextRequest) {
 
   const { runId, overallScore, summary, criteria, rawResponse } = validation.data;
 
-  const candidate = await prisma.candidate.findUnique({
-    where: { n8nRunId: runId },
-    include: { screeningResult: true },
-  });
-
-  if (!candidate) {
-    return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
-  }
-
-  if (candidate.status === "completed" && candidate.screeningResult) {
-    return NextResponse.json({ success: true, alreadyProcessed: true });
-  }
-
   try {
-    if (!candidate.screeningResult) {
-      await prisma.screeningResult.create({
-        data: {
-          candidateId: candidate.id,
-          overallScore,
-          summary,
-          criteria: JSON.stringify(criteria),
-          rawResponse: rawResponse ?? null,
-        },
+    const result = await prisma.$transaction(async (tx) => {
+      const lockedCandidate = await tx.candidate.findUnique({
+        where: { n8nRunId: runId },
+        include: { screeningResult: true },
       });
-    }
 
-    await prisma.candidate.update({
-      where: { id: candidate.id },
-      data: {
-        status: "completed",
-        overallScore,
-      },
+      if (!lockedCandidate) {
+        return { error: "Candidate not found", status: 404 };
+      }
+
+      if (lockedCandidate.status === "completed" && lockedCandidate.screeningResult) {
+        return { success: true, alreadyProcessed: true };
+      }
+
+      if (!lockedCandidate.screeningResult) {
+        await tx.screeningResult.create({
+          data: {
+            candidateId: lockedCandidate.id,
+            overallScore,
+            summary,
+            criteria: JSON.stringify(criteria),
+            rawResponse: rawResponse ?? null,
+          },
+        });
+      }
+
+      await tx.candidate.update({
+        where: { id: lockedCandidate.id },
+        data: { status: "completed", overallScore },
+      });
+
+      return { success: true };
     });
 
-    return NextResponse.json({ success: true });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Callback processing error:", error);
-
-    const refreshed = await prisma.candidate.findUnique({
-      where: { id: candidate.id },
-      include: { screeningResult: true },
-    });
-
-    if (refreshed?.status === "completed" && refreshed.screeningResult) {
-      return NextResponse.json({ success: true, alreadyProcessed: true });
-    }
-
-    await prisma.candidate.update({
-      where: { id: candidate.id },
-      data: { status: "failed" },
-    }).catch(console.error);
-
     return NextResponse.json(
       { error: "Failed to process callback" },
       { status: 500 }

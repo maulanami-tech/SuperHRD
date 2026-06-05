@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
   const candidates = await prisma.candidate.findMany({
     where: {
+      submittedById: session.user.id,
       ...(search && {
         OR: [
           { name: { contains: search } },

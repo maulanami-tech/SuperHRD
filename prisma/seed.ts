@@ -1,4 +1,5 @@
 import { hashSync } from "bcryptjs";
+import { randomBytes } from "crypto";
 import "dotenv/config";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
@@ -7,7 +8,8 @@ async function main() {
   const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" });
   const prisma = new PrismaClient({ adapter });
 
-  const passwordHash = hashSync("admin123", 10);
+  const defaultPassword = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(16).toString("hex");
+  const passwordHash = hashSync(defaultPassword, 10);
 
   await prisma.user.upsert({
     where: { email: "hrd@superhrd.com" },
@@ -20,6 +22,9 @@ async function main() {
   });
 
   console.log("Seed completed: HRD Admin user created");
+  console.log(`Email: hrd@superhrd.com`);
+  console.log(`Password: ${defaultPassword}`);
+  console.log("Save this password! It will not be shown again.");
 
   await prisma.$disconnect();
 }

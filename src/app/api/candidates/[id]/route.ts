@@ -14,7 +14,10 @@ export async function GET(
   const { id } = await params;
 
   const candidate = await prisma.candidate.findUnique({
-    where: { id },
+    where: {
+      id,
+      submittedById: session.user.id,
+    },
     include: { screeningResult: true },
   });
 
