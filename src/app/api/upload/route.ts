@@ -16,11 +16,11 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  const name = formData.get("name") as string;
+  const name = (formData.get("name") as string) ?? "";
   const email = (formData.get("email") as string | null) ?? undefined;
-  const posisi = formData.get("posisi") as string;
-  const kriteria = formData.get("kriteria") as string;
-  const prompt = formData.get("prompt") as string;
+  const posisi = (formData.get("posisi") as string) ?? "";
+  const kriteria = (formData.get("kriteria") as string) ?? "";
+  const prompt = (formData.get("prompt") as string) ?? "";
 
   if (!file) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });

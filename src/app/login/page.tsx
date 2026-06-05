@@ -2,7 +2,6 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2, Users } from "lucide-react";
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginUser } from "@/lib/actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,17 +37,17 @@ export default function LoginPage() {
 
   async function onSubmit(data: LoginInput) {
     setLoading(true);
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      toast.error("Invalid email or password");
+    try {
+      const result = await loginUser(data.email, data.password);
+      if (result?.error) {
+        toast.error("Invalid email or password");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-    } else {
-      router.push("/dashboard");
     }
   }
 
