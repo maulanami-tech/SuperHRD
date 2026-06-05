@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  createdAt    DateTime    @default(now())
+  candidates   Candidate[]
+}
+
+model Candidate {
+  id              String          @id @default(cuid())
+  name            String
+  email           String?
+  fileName        String
+  filePath        String
+  status          String          @default("pending")
+  overallScore    Float?
+  n8nRunId        String?         @unique
+  submittedBy     String
+  submittedById   String
+  submittedByUser User            @relation(fields: [submittedById], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  screeningResult ScreeningResult?
+}
+
+model ScreeningResult {
+  id           String    @id @default(cuid())
+  candidateId  String    @unique
+  candidate    Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  overallScore Float
+  summary      String
+  criteria     String
+  rawResponse  String?
+  scoredAt     DateTime  @default(now())
+}
