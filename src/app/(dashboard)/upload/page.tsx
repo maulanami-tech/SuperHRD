@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -34,6 +35,9 @@ export default function UploadPage() {
     defaultValues: {
       name: "",
       email: "",
+      posisi: "",
+      kriteria: "",
+      prompt: "",
     },
   });
 
@@ -48,6 +52,9 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append("name", data.name);
       if (data.email) formData.append("email", data.email);
+      formData.append("posisi", data.posisi);
+      formData.append("kriteria", data.kriteria);
+      formData.append("prompt", data.prompt);
       formData.append("file", file);
 
       const res = await fetch("/api/upload", {
@@ -112,6 +119,50 @@ export default function UploadPage() {
                   <p className="text-sm text-destructive">
                     {errors.email.message}
                   </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="posisi">
+                  Position <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="posisi"
+                  placeholder="e.g. Senior Backend Developer"
+                  {...register("posisi")}
+                />
+                {errors.posisi && (
+                  <p className="text-sm text-destructive">{errors.posisi.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="kriteria">
+                  Evaluation Criteria <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="kriteria"
+                  placeholder="e.g. Pengalaman minimal 3 tahun di Python"
+                  rows={3}
+                  {...register("kriteria")}
+                />
+                {errors.kriteria && (
+                  <p className="text-sm text-destructive">{errors.kriteria.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="prompt">
+                  AI Prompt <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="prompt"
+                  placeholder="e.g. Tolong evaluasi CV yang diupload"
+                  rows={3}
+                  {...register("prompt")}
+                />
+                {errors.prompt && (
+                  <p className="text-sm text-destructive">{errors.prompt.message}</p>
                 )}
               </div>
 

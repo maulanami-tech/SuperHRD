@@ -15,9 +15,6 @@ interface FileDropzoneProps {
 
 const ACCEPT = {
   "application/pdf": [".pdf"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
-    ".docx",
-  ],
 };
 
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -48,7 +45,7 @@ export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
       onFileChange(null);
       switch (err?.code) {
         case "file-invalid-type":
-          toast.error("Invalid file type. Only PDF and DOCX are accepted.");
+          toast.error("Invalid file type. Only PDF files are accepted.");
           break;
         case "file-too-large":
           toast.error("File is too large. Maximum size is 10MB.");
@@ -102,7 +99,7 @@ export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
         {isDragActive ? "Drop the file here" : "Drag & drop your CV here"}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        PDF or DOCX, max 10MB
+        PDF only, max 10MB
       </p>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>

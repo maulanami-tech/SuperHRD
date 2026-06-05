@@ -24,6 +24,9 @@ model Candidate {
   filePath        String
   status          String          @default("pending")
   overallScore    Float?
+  posisi          String?
+  kriteria        String?
+  prompt          String?
   n8nRunId        String?         @unique
   submittedBy     String
   submittedById   String

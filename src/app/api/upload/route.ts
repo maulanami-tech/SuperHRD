@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadSchema, fileSchema } from "@/lib/validations";
-import { extractText } from "@/lib/file-parser";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
 import { v4 as uuidv4 } from "uuid";
@@ -19,12 +18,15 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   const name = formData.get("name") as string;
   const email = (formData.get("email") as string | null) ?? undefined;
+  const posisi = formData.get("posisi") as string;
+  const kriteria = formData.get("kriteria") as string;
+  const prompt = formData.get("prompt") as string;
 
   if (!file) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });
   }
 
-  const candidateValidation = uploadSchema.safeParse({ name, email });
+  const candidateValidation = uploadSchema.safeParse({ name, email, posisi, kriteria, prompt });
   if (!candidateValidation.success) {
     return NextResponse.json(
       { error: candidateValidation.error.issues[0].message },
@@ -60,14 +62,15 @@ export async function POST(req: NextRequest) {
 
   await fs.writeFile(filePath, fileBuffer);
 
-  const cvText = await extractText(filePath, file.type);
-
   const n8nRunId = uuidv4();
 
   const candidate = await prisma.candidate.create({
     data: {
       name: candidateValidation.data.name,
       email: candidateValidation.data.email ?? null,
+      posisi: candidateValidation.data.posisi,
+      kriteria: candidateValidation.data.kriteria,
+      prompt: candidateValidation.data.prompt,
       fileName: file.name,
       filePath,
       status: "pending",
@@ -77,15 +80,13 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const callbackUrl = `${process.env.APP_URL}/api/n8n/callback`;
-
   try {
     await sendToN8n({
-      runId: n8nRunId,
-      cvText,
-      candidateName: candidate.name,
-      candidateEmail: candidate.email ?? undefined,
-      callbackUrl,
+      fileBuffer,
+      fileName: file.name,
+      posisi: candidateValidation.data.posisi,
+      kriteria: candidateValidation.data.kriteria,
+      prompt: candidateValidation.data.prompt,
     });
 
     await prisma.candidate.update({

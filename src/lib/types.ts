@@ -16,6 +16,9 @@ export interface Candidate {
   filePath: string;
   status: string;
   overallScore: number | null;
+  posisi: string | null;
+  kriteria: string | null;
+  prompt: string | null;
   n8nRunId: string | null;
   submittedBy: string;
   submittedById: string;
