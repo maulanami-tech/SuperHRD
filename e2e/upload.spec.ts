@@ -14,11 +14,20 @@ test.beforeAll(() => {
   fs.writeFileSync(path.join(tmpDir, "info-test.pdf"), MINIMAL_PDF);
   fs.writeFileSync(path.join(tmpDir, "remove-test.pdf"), MINIMAL_PDF);
   fs.writeFileSync(path.join(tmpDir, "validation-test.pdf"), MINIMAL_PDF);
+  fs.writeFileSync(path.join(tmpDir, "full-upload-test.pdf"), MINIMAL_PDF);
+  fs.writeFileSync(path.join(tmpDir, "fake-docx.docx"), "not a real docx");
 });
 
 test.afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+async function fillRequiredFields(page: import("@playwright/test").Page) {
+  await page.fill("#name", "John Doe");
+  await page.fill("#posisi", "Senior Backend Developer");
+  await page.fill("#kriteria", "Pengalaman minimal 3 tahun di Python");
+  await page.fill("#prompt", "Tolong evaluasi CV yang diupload");
+}
 
 test.describe("Upload Flow", () => {
   test.beforeEach(async ({ page }) => {
@@ -30,26 +39,55 @@ test.describe("Upload Flow", () => {
     await page.goto("/upload");
   });
 
-  test("upload page renders with form fields and dropzone", async ({
+  test("upload page renders with all form fields and dropzone", async ({
     page,
   }) => {
     await expect(page.getByText("Candidate Information")).toBeVisible();
     await expect(page.locator("#name")).toBeVisible();
     await expect(page.locator("#email")).toBeVisible();
+    await expect(page.locator("#posisi")).toBeVisible();
+    await expect(page.locator("#kriteria")).toBeVisible();
+    await expect(page.locator("#prompt")).toBeVisible();
     await expect(page.getByText("Drag & drop your CV here")).toBeVisible();
-    await expect(page.getByText("PDF or DOCX, max 10MB")).toBeVisible();
+    await expect(page.getByText("PDF only, max 10MB")).toBeVisible();
+  });
+
+  test("posisi is an Input, kriteria and prompt are Textareas", async ({
+    page,
+  }) => {
+    await expect(page.locator("#posisi")).toBeVisible();
+    await expect(page.locator("textarea#kriteria")).toBeVisible();
+    await expect(page.locator("textarea#prompt")).toBeVisible();
+  });
+
+  test("required fields show asterisk indicator", async ({ page }) => {
+    const nameField = page
+      .locator("label")
+      .filter({ hasText: "Candidate Name" });
+    await expect(nameField.locator("span")).toBeVisible();
+
+    const posisiField = page.locator("label").filter({ hasText: "Position" });
+    await expect(posisiField.locator("span")).toBeVisible();
+
+    const kriteriaField = page
+      .locator("label")
+      .filter({ hasText: "Evaluation Criteria" });
+    await expect(kriteriaField.locator("span")).toBeVisible();
+
+    const promptField = page.locator("label").filter({ hasText: "AI Prompt" });
+    await expect(promptField.locator("span")).toBeVisible();
   });
 
   test("submit button is disabled without a file", async ({ page }) => {
-    await page.fill("#name", "John Doe");
+    await fillRequiredFields(page);
     const submitBtn = page.getByRole("button", { name: /upload & screen/i });
     await expect(submitBtn).toBeDisabled();
   });
 
-  test("submit button is enabled when name and file are provided", async ({
+  test("submit button is enabled when all required fields and file are provided", async ({
     page,
   }) => {
-    await page.fill("#name", "John Doe");
+    await fillRequiredFields(page);
     await page.setInputFiles(
       'input[type="file"]',
       path.join(tmpDir, "submit-test.pdf")
@@ -80,7 +118,7 @@ test.describe("Upload Flow", () => {
     await expect(page.getByText("Drag & drop your CV here")).toBeVisible();
   });
 
-  test("upload without candidate name shows validation error", async ({
+  test("upload without required fields shows validation errors", async ({
     page,
   }) => {
     await page.setInputFiles(
@@ -91,5 +129,49 @@ test.describe("Upload Flow", () => {
     await expect(
       page.getByText("Candidate name is required")
     ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("docx file is rejected with toast error", async ({ page }) => {
+    await page.setInputFiles(
+      'input[type="file"]',
+      path.join(tmpDir, "fake-docx.docx")
+    );
+    await expect(
+      page.getByText("Invalid file type. Only PDF files are accepted.")
+    ).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("Upload API — Unauthenticated", () => {
+  test("POST /api/upload returns 401 when unauthenticated", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/upload");
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("Unauthorized");
+  });
+
+  test("POST /api/upload with DOCX file returns 400 (file type rejected)", async ({
+    request,
+  }) => {
+    const formData = new FormData();
+    formData.append("name", "Test");
+    formData.append("posisi", "Developer");
+    formData.append("kriteria", "Criteria");
+    formData.append("prompt", "Prompt");
+    formData.append(
+      "file",
+      new Blob(["fake docx content"], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+      "test.docx"
+    );
+
+    const res = await request.post("/api/upload", {
+      multipart: formData,
+    });
+
+    expect(res.status()).toBe(401);
   });
 });

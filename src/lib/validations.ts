@@ -6,11 +6,11 @@ export const loginSchema = z.object({
 });
 
 export const uploadSchema = z.object({
-  name: z.string().min(1, "Candidate name is required"),
+  name: z.string().min(1, "Candidate name is required").max(200, "Name is too long"),
   email: z.email().optional(),
-  posisi: z.string().min(1, "Position is required"),
-  kriteria: z.string().min(1, "Evaluation criteria is required"),
-  prompt: z.string().min(1, "Prompt is required"),
+  posisi: z.string().min(1, "Position is required").max(200, "Position is too long"),
+  kriteria: z.string().min(1, "Evaluation criteria is required").max(5000, "Criteria is too long"),
+  prompt: z.string().min(1, "Prompt is required").max(5000, "Prompt is too long"),
 });
 
 export const fileSchema = z.object({

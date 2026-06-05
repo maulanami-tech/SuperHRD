@@ -72,8 +72,9 @@ test.describe("Auth Flow", () => {
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
 
-    // Click the Sign out button in the sidebar
-    await page.getByRole("button", { name: /sign out/i }).click();
+    // Dismiss Next.js dev overlay, then submit the logout form
+    await page.locator("body").click({ position: { x: 0, y: 0 } });
+    await page.locator('form:has(button:has-text("Sign out"))').evaluate((f) => (f as HTMLFormElement).requestSubmit());
 
     // Should redirect to /login after logout
     await expect(page).toHaveURL(/.*\/login/, { timeout: 15000 });
