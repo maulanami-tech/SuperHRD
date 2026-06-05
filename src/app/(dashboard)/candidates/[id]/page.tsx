@@ -1,0 +1,244 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Calendar,
+  FileText,
+  Loader2,
+  Mail,
+  RefreshCw,
+  User,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import type { Candidate, CriteriaItem } from "@/lib/types";
+import { StatusBadge } from "@/components/status-badge";
+import { ScoreBadge } from "@/components/score-badge";
+import { ScreeningResults } from "@/components/screening-results";
+import { CandidateDetailSkeleton } from "@/components/loading-skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+
+export default function CandidateDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchCandidate() {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`/api/candidates/${id}`);
+      if (!res.ok) throw new Error("Failed to load candidate");
+      const data = await res.json();
+      setCandidate(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchCandidate();
+  }, [id]);
+
+  useEffect(() => {
+    if (
+      candidate?.status === "processing" ||
+      candidate?.status === "pending"
+    ) {
+      const interval = setInterval(fetchCandidate, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [candidate?.status]);
+
+  if (loading) {
+    return (
+      <>
+        <div className="flex h-14 items-center border-b px-4 md:px-6">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </div>
+        <main className="flex-1 p-4 md:p-6">
+          <CandidateDetailSkeleton />
+        </main>
+      </>
+    );
+  }
+
+  if (error || !candidate) {
+    return (
+      <>
+        <div className="flex h-14 items-center border-b px-4 md:px-6">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </div>
+        <main className="flex flex-1 items-center justify-center p-4">
+          <div className="text-center">
+            <p className="text-muted-foreground">
+              {error || "Candidate not found"}
+            </p>
+            <Button variant="outline" className="mt-4" onClick={fetchCandidate}>
+              Try again
+            </Button>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  let criteria: CriteriaItem[] = [];
+  if (candidate.screeningResult?.criteria) {
+    try {
+      criteria = JSON.parse(candidate.screeningResult.criteria);
+    } catch {
+      criteria = [];
+    }
+  }
+
+  return (
+    <>
+      <div className="flex h-14 items-center border-b px-4 md:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      </div>
+
+      <main className="flex-1 space-y-6 p-4 md:p-6">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-xl">{candidate.name}</CardTitle>
+                <CardDescription className="mt-1">
+                  Submitted{" "}
+                  {formatDistanceToNow(new Date(candidate.createdAt), {
+                    addSuffix: true,
+                  })}{" "}
+                  by {candidate.submittedBy}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={candidate.status} />
+                <ScoreBadge
+                  score={candidate.overallScore}
+                  size="lg"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span>{candidate.email || "No email"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{candidate.fileName}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {new Date(candidate.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {candidate.status === "processing" && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-4 border-muted" />
+                <Loader2 className="absolute inset-0 m-auto h-8 w-8 animate-spin text-primary" />
+              </div>
+              <h3 className="mt-6 text-lg font-semibold">
+                AI is screening this CV...
+              </h3>
+              <p className="mt-2 text-center text-sm text-muted-foreground">
+                Results will appear here once the analysis is complete.
+                <br />
+                This page refreshes automatically.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {candidate.status === "pending" && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <User className="h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold">
+                Waiting to be processed
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                This candidate is queued for AI screening.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {candidate.status === "failed" && (
+          <Card className="border-destructive/50">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                <RefreshCw className="h-6 w-6 text-destructive" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">Screening Failed</h3>
+              <p className="mt-2 text-center text-sm text-muted-foreground">
+                Something went wrong during the AI screening.
+                <br />
+                Please try uploading the CV again.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => router.push("/upload")}
+              >
+                Upload Again
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {candidate.status === "completed" && candidate.screeningResult && (
+          <>
+            <Separator />
+            <Card>
+              <CardHeader>
+                <CardTitle>Screening Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScreeningResults
+                  overallScore={candidate.screeningResult.overallScore}
+                  summary={candidate.screeningResult.summary}
+                  criteria={criteria}
+                />
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </main>
+    </>
+  );
+}
