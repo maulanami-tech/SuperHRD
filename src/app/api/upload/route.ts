@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { extractText } from "@/lib/file-parser";
 import { sendToN8n } from "@/lib/n8n-client";
+import { validateFileMagicBytes } from "@/lib/file-validator";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const name = formData.get("name") as string;
-  const email = formData.get("email") as string | null;
+  const email = (formData.get("email") as string | null) ?? undefined;
 
   if (!file) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });
@@ -39,6 +40,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const bytes = await file.arrayBuffer();
+  const fileBuffer = Buffer.from(bytes);
+
+  const magicCheck = validateFileMagicBytes(fileBuffer, file.type);
+  if (!magicCheck.valid) {
+    return NextResponse.json(
+      { error: `Invalid file content: file does not match expected ${magicCheck.expected} format. The file may be corrupted or have an incorrect extension.` },
+      { status: 400 }
+    );
+  }
+
   const uploadsDir = path.join(process.cwd(), "uploads");
   await fs.mkdir(uploadsDir, { recursive: true });
 
@@ -46,8 +58,7 @@ export async function POST(req: NextRequest) {
   const fileName = `${uuidv4()}.${fileExtension}`;
   const filePath = path.join(uploadsDir, fileName);
 
-  const bytes = await file.arrayBuffer();
-  await fs.writeFile(filePath, Buffer.from(bytes));
+  await fs.writeFile(filePath, fileBuffer);
 
   const cvText = await extractText(filePath, file.type);
 
