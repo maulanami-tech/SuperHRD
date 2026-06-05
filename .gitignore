@@ -52,3 +52,9 @@ next-env.d.ts
 test-results/
 playwright-report/
 qoderwake-security-scanner-role/
+
+# qoder prompts, specs, and role templates
+.qoder/
+
+# qa and security reports
+qa-reports/
