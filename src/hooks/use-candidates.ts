@@ -50,7 +50,9 @@ export function useCandidates({
   }, [search, status]);
 
   const fetchRef = useRef(fetchCandidates);
-  fetchRef.current = fetchCandidates;
+  useEffect(() => {
+    fetchRef.current = fetchCandidates;
+  }, [fetchCandidates]);
 
   useEffect(() => {
     isFirstLoad.current = true;

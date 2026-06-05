@@ -52,7 +52,9 @@ export default function CandidateDetailPage() {
   }, [id]);
 
   const fetchRef = useRef(fetchCandidate);
-  fetchRef.current = fetchCandidate;
+  useEffect(() => {
+    fetchRef.current = fetchCandidate;
+  }, [fetchCandidate]);
 
   useEffect(() => {
     fetchCandidate();
