@@ -49,7 +49,6 @@ export default function CandidateDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [processingTimedOut, setProcessingTimedOut] = useState(false);
 
   const fetchCandidate = useCallback(async () => {
     try {
@@ -64,12 +63,6 @@ export default function CandidateDetailPage() {
       if (!res.ok) throw new Error("Failed to load candidate");
       const data: Candidate = await res.json();
       setCandidate(data);
-      setProcessingTimedOut(
-        isProcessingTimedOut({
-          status: data.status,
-          updatedAt: new Date(data.updatedAt),
-        })
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -93,29 +86,16 @@ export default function CandidateDetailPage() {
     }
   }, [candidate?.status]);
 
-  // Client-side timeout watcher: if the candidate is still "processing" on the
-  // client but has been running longer than the 30-minute timeout threshold,
-  // surface a hint without waiting for the next poll.
+  // Client-side refresh while a candidate is still processing: bump a tick
+  // counter so render-time timeout evaluation (isProcessingTimedOut) picks
+  // up wall-clock progress. The actual timeout decision is derived during
+  // render, not stored as state, to keep the effect side-effect-free.
+  const [, setTick] = useState(0);
   useEffect(() => {
-    if (
-      !candidate ||
-      candidate.status !== "processing" ||
-      processingTimedOut
-    ) {
-      return;
-    }
-    const evaluate = () => {
-      setProcessingTimedOut(
-        isProcessingTimedOut({
-          status: candidate.status,
-          updatedAt: new Date(candidate.updatedAt),
-        })
-      );
-    };
-    evaluate();
-    const interval = setInterval(evaluate, 10000);
+    if (candidate?.status !== "processing") return;
+    const interval = setInterval(() => setTick((n) => n + 1), 10000);
     return () => clearInterval(interval);
-  }, [candidate, processingTimedOut]);
+  }, [candidate?.status]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -206,7 +186,11 @@ export default function CandidateDetailPage() {
   }
 
   const showProcessingTimeoutHint =
-    candidate.status === "processing" && processingTimedOut;
+    candidate.status === "processing" &&
+    isProcessingTimedOut({
+      status: candidate.status,
+      updatedAt: new Date(candidate.updatedAt),
+    });
 
   return (
     <>
