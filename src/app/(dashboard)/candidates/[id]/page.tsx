@@ -4,15 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Briefcase,
   Calendar,
   FileText,
   Loader2,
   Mail,
   RefreshCw,
+  Trash2,
   User,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 import type { Candidate, CriteriaItem } from "@/lib/types";
+import { isProcessingTimedOut } from "@/lib/candidate-status";
 import { StatusBadge } from "@/components/status-badge";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScreeningResults } from "@/components/screening-results";
@@ -26,6 +30,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function CandidateDetailPage() {
   const params = useParams();
@@ -35,15 +47,29 @@ export default function CandidateDetailPage() {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [processingTimedOut, setProcessingTimedOut] = useState(false);
 
   const fetchCandidate = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/candidates/${id}`);
+      if (res.status === 404) {
+        setError("Candidate not found");
+        setCandidate(null);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load candidate");
-      const data = await res.json();
+      const data: Candidate = await res.json();
       setCandidate(data);
+      setProcessingTimedOut(
+        isProcessingTimedOut({
+          status: data.status,
+          updatedAt: new Date(data.updatedAt),
+        })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -61,20 +87,77 @@ export default function CandidateDetailPage() {
   }, [fetchCandidate]);
 
   useEffect(() => {
-    if (
-      candidate?.status === "processing" ||
-      candidate?.status === "pending"
-    ) {
+    if (candidate?.status === "processing" || candidate?.status === "pending") {
       const interval = setInterval(() => fetchRef.current(), 10000);
       return () => clearInterval(interval);
     }
   }, [candidate?.status]);
 
+  // Client-side timeout watcher: if the candidate is still "processing" on the
+  // client but has been running longer than the 30-minute timeout threshold,
+  // surface a hint without waiting for the next poll.
+  useEffect(() => {
+    if (
+      !candidate ||
+      candidate.status !== "processing" ||
+      processingTimedOut
+    ) {
+      return;
+    }
+    const evaluate = () => {
+      setProcessingTimedOut(
+        isProcessingTimedOut({
+          status: candidate.status,
+          updatedAt: new Date(candidate.updatedAt),
+        })
+      );
+    };
+    evaluate();
+    const interval = setInterval(evaluate, 10000);
+    return () => clearInterval(interval);
+  }, [candidate, processingTimedOut]);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/candidates/${id}`, { method: "DELETE" });
+      if (res.status === 404) {
+        toast("Candidate already removed");
+        router.replace("/dashboard");
+        return;
+      }
+      if (!res.ok) {
+        let message = "Failed to remove candidate";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          // non-JSON response — keep default message
+        }
+        toast.error(message);
+        return;
+      }
+      toast.success("Candidate removed");
+      router.replace("/dashboard");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to remove candidate"
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDelete(false);
+    }
+  }, [id, router]);
+
   if (loading) {
     return (
       <>
         <div className="flex h-14 items-center border-b px-4 md:px-6">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/dashboard")}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
@@ -90,7 +173,11 @@ export default function CandidateDetailPage() {
     return (
       <>
         <div className="flex h-14 items-center border-b px-4 md:px-6">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/dashboard")}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
@@ -118,12 +205,29 @@ export default function CandidateDetailPage() {
     }
   }
 
+  const showProcessingTimeoutHint =
+    candidate.status === "processing" && processingTimedOut;
+
   return (
     <>
-      <div className="flex h-14 items-center border-b px-4 md:px-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+      <div className="flex h-14 items-center justify-between border-b px-4 md:px-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push("/dashboard")}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          onClick={() => setShowDelete(true)}
+          disabled={isDeleting}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Remove
         </Button>
       </div>
 
@@ -143,18 +247,23 @@ export default function CandidateDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={candidate.status} />
-                <ScoreBadge
-                  score={candidate.overallScore}
-                  size="lg"
-                />
+                <ScoreBadge score={candidate.overallScore} size="lg" />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center gap-2 text-sm">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">
+                  {candidate.posisi || "No position"}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-sm">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{candidate.email || "No email"}</span>
+                <span className="truncate">
+                  {candidate.email || "No email"}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <FileText className="h-4 w-4 text-muted-foreground" />
@@ -170,7 +279,7 @@ export default function CandidateDetailPage() {
           </CardContent>
         </Card>
 
-        {candidate.status === "processing" && (
+        {candidate.status === "processing" && !showProcessingTimeoutHint && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <div className="relative">
@@ -185,6 +294,32 @@ export default function CandidateDetailPage() {
                 <br />
                 This page refreshes automatically.
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {showProcessingTimeoutHint && (
+          <Card className="border-destructive/50">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                <RefreshCw className="h-6 w-6 text-destructive" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">
+                Screening timed out
+              </h3>
+              <p className="mt-2 text-center text-sm text-muted-foreground">
+                The AI screening has been running for more than 30 minutes and
+                is considered failed.
+                <br />
+                Please try uploading the CV again.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => router.push("/upload")}
+              >
+                Upload Again
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -244,6 +379,53 @@ export default function CandidateDetailPage() {
           </>
         )}
       </main>
+
+      <Dialog
+        open={showDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setShowDelete(false);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove candidate?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove{" "}
+              <strong>{candidate.name}</strong>
+              {candidate.posisi ? (
+                <>
+                  {" "}
+                  for the <strong>{candidate.posisi}</strong> position
+                </>
+              ) : null}
+              . This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDelete(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDelete()}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                "Remove candidate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

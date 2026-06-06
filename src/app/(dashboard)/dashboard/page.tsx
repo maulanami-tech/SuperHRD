@@ -33,7 +33,7 @@ export default function DashboardPage() {
     return cleanup;
   }, [search, debounce]);
 
-  const { candidates, isLoading, error } = useCandidates({
+  const { candidates, isLoading, error, refetch } = useCandidates({
     search: debouncedSearch,
     status: status === "all" ? "" : status,
   });
@@ -87,7 +87,7 @@ export default function DashboardPage() {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <CandidatesTable candidates={candidates} />
+            <CandidatesTable candidates={candidates} onDeleted={refetch} />
           </div>
         )}
       </main>
