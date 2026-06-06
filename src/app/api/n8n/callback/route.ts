@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { n8nCallbackSchema } from "@/lib/validations";
 import { timingSafeEqual } from "@/lib/crypto-utils";
+import { isProcessingTimedOut } from "@/lib/candidate-status";
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-callback-secret");
@@ -36,6 +37,16 @@ export async function POST(req: NextRequest) {
 
       if (lockedCandidate.status === "completed" && lockedCandidate.screeningResult) {
         return { success: true, alreadyProcessed: true };
+      }
+
+      // Reject late callbacks for timed-out processing candidates
+      if (isProcessingTimedOut(lockedCandidate)) {
+        return { error: "Candidate processing has timed out", status: 409 };
+      }
+
+      // Reject callbacks for explicitly failed candidates
+      if (lockedCandidate.status === "failed") {
+        return { error: "Candidate has already failed", status: 409 };
       }
 
       if (!lockedCandidate.screeningResult) {
