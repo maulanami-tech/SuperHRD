@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  getEffectiveStatus,
+  buildStatusFilter,
+} from "@/lib/candidate-status";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -21,11 +25,16 @@ export async function GET(req: NextRequest) {
           { email: { contains: search } },
         ],
       }),
-      ...(status && { status }),
+      ...(status && buildStatusFilter(status)),
     },
     include: { screeningResult: true },
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(candidates);
+  const result = candidates.map((c) => ({
+    ...c,
+    status: getEffectiveStatus(c),
+  }));
+
+  return NextResponse.json(result);
 }
