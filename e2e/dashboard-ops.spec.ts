@@ -4,7 +4,7 @@ test.describe("Dashboard Operations - QA Blockers Verification", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
     await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "password123");
+    await page.fill("#password", "admin123");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
@@ -142,7 +142,7 @@ test.describe("Candidate Detail Operations - QA Blockers Verification", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
     await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "password123");
+    await page.fill("#password", "admin123");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
@@ -273,7 +273,7 @@ test.describe("Dashboard Operations - Delete Flow", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
     await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "password123");
+    await page.fill("#password", "admin123");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
@@ -300,6 +300,62 @@ test.describe("Dashboard Operations - Delete Flow", () => {
         // Verify row still exists
         const rowCountAfter = await page.locator("table tbody tr").count();
         expect(rowCountAfter).toBe(rowCountBefore);
+      }
+    }
+  });
+
+  test("Delete flow: candidate is removed from UI immediately after confirmation", async ({
+    page,
+  }) => {
+    // Wait for table to load first
+    await page.waitForTimeout(1000);
+    const rowCountBefore = await page.locator("table tbody tr").count();
+
+    if (rowCountBefore > 0) {
+      // Get candidate name from first row before delete
+      const firstRowName = await page
+        .locator("table tbody tr")
+        .first()
+        .locator("td")
+        .first()
+        .textContent();
+
+      // Wait for the button to be ready
+      const moreButton = page.locator('button[aria-label*="More"]').first();
+      await moreButton.waitFor({ state: "visible", timeout: 5000 });
+
+      // Stop propagation by clicking the button directly
+      await moreButton.click({ force: true });
+
+      // Wait for menu to be visible
+      await page.waitForSelector('[role="menuitem"]', { timeout: 2000 });
+
+      await page.getByRole("menuitem", { name: /remove candidate/i }).click();
+
+      // Confirm delete
+      await page
+        .locator('[role="dialog"]')
+        .getByRole("button", { name: /remove candidate/i })
+        .click();
+
+      // Wait for success toast
+      await expect(page.getByText(/candidate removed/i)).toBeVisible({
+        timeout: 5000,
+      });
+
+      // CRITICAL: Verify we stay on dashboard page (should NOT navigate to detail)
+      await page.waitForTimeout(1000);
+      expect(page.url()).toContain("/dashboard");
+      expect(page.url()).not.toContain("/candidates/");
+
+      // Verify candidate is immediately removed from table (no 10s polling wait)
+      const rowCountAfter = await page.locator("table tbody tr").count();
+      expect(rowCountAfter).toBe(rowCountBefore - 1);
+
+      // Verify the specific candidate name is no longer in the table
+      if (firstRowName) {
+        const nameExists = await page.locator(`text=${firstRowName}`).count();
+        expect(nameExists).toBe(0);
       }
     }
   });

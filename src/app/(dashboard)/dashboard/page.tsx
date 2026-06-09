@@ -38,6 +38,10 @@ export default function DashboardPage() {
     status: status === "all" ? "" : status,
   });
 
+  const handleDeleted = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   return (
     <>
       <Header title="Candidate Screening" description="Review AI-scored CVs">
@@ -87,7 +91,7 @@ export default function DashboardPage() {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <CandidatesTable candidates={candidates} onDeleted={refetch} />
+            <CandidatesTable candidates={candidates} onDeleted={handleDeleted} />
           </div>
         )}
       </main>

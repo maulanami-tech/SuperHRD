@@ -7,7 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
-import { loginSchema, type LoginInput } from "@/lib/validations";
+import { registerSchema, type RegisterInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,9 +18,9 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginUser } from "@/lib/actions";
+import { registerUser } from "@/lib/actions";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -28,21 +28,24 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterInput>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
+      confirmPassword: "",
     },
   });
 
-  async function onSubmit(data: LoginInput) {
+  async function onSubmit(data: RegisterInput) {
     setLoading(true);
     try {
-      const result = await loginUser(data.email, data.password);
+      const result = await registerUser(data);
       if (result?.error) {
-        toast.error("Invalid email or password");
+        toast.error(result.error);
       } else {
+        toast.success("Registration successful!");
         router.push("/dashboard");
       }
     } catch {
@@ -60,14 +63,27 @@ export default function LoginPage() {
             <Users className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">
-            SuperHRD
+            Create an Account
           </CardTitle>
           <CardDescription>
-            Sign in to access the CV screening dashboard
+            Register to start screening candidates
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="HRD Manager"
+                autoComplete="name"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name.message}</p>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -86,8 +102,8 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
-                autoComplete="current-password"
+                placeholder="Min. 6 characters"
+                autoComplete="new-password"
                 {...register("password")}
               />
               {errors.password && (
@@ -96,24 +112,39 @@ export default function LoginPage() {
                 </p>
               )}
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Re-enter your password"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+              />
+              {errors.confirmPassword && (
+                <p className="text-sm text-destructive">
+                  {errors.confirmPassword.message}
+                </p>
+              )}
+            </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
-                "Sign in"
+                "Create account"
               )}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
+            Already have an account?{" "}
             <Link
-              href="/register"
+              href="/login"
               className="font-medium text-primary hover:underline"
             >
-              Register here
+              Sign in
             </Link>
           </p>
         </CardContent>

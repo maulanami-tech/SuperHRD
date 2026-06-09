@@ -5,6 +5,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+export const registerSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name is too long"),
+  email: z.email(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
 export const uploadSchema = z.object({
   name: z.string().min(1, "Candidate name is required").max(200, "Name is too long"),
   email: z.email().optional(),
@@ -36,5 +46,6 @@ export const n8nCallbackSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+export type RegisterInput = z.infer<typeof registerSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;

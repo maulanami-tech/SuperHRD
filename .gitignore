@@ -55,6 +55,7 @@ qoderwake-security-scanner-role/
 
 # qoder prompts, specs, and role templates
 .qoder/
+.claude/
 
 # qa and security reports
 qa-reports/

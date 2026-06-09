@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export default function middleware(req: NextRequest) {
+export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (
@@ -21,6 +21,7 @@ export default function middleware(req: NextRequest) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
     return NextResponse.redirect(new URL("/login", req.url));
   }
 

@@ -56,6 +56,15 @@ interface ActionColumnDef {
   onDelete?: (candidate: Candidate) => void;
 }
 
+function isInteractiveTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    !!target.closest(
+      'button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-row-action="true"]'
+    )
+  );
+}
+
 export function CandidatesTable({
   candidates,
   onDeleted,
@@ -66,6 +75,7 @@ export function CandidatesTable({
   ]);
   const [confirmTarget, setConfirmTarget] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   const handleDelete = useCallback(
     async (candidate: Candidate) => {
@@ -76,6 +86,7 @@ export function CandidatesTable({
         });
         if (res.status === 404) {
           toast("Candidate already removed");
+          setDeletedIds((prev) => new Set(prev).add(candidate.id));
           onDeleted?.(candidate.id);
           return;
         }
@@ -91,6 +102,7 @@ export function CandidatesTable({
           return;
         }
         toast.success("Candidate removed");
+        setDeletedIds((prev) => new Set(prev).add(candidate.id));
         onDeleted?.(candidate.id);
       } catch (err) {
         toast.error(
@@ -226,7 +238,12 @@ export function CandidatesTable({
         cell: ({ row, column }) => {
           const onDelete = (column.columnDef as ActionColumnDef).onDelete;
           return (
-            <div className="flex justify-end">
+            <div
+              className="flex justify-end"
+              data-row-action="true"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -234,12 +251,17 @@ export function CandidatesTable({
                     size="icon"
                     className="h-8 w-8"
                     onClick={(e) => e.stopPropagation()}
-                    aria-label="Open candidate actions"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    aria-label="More candidate actions"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent
+                  align="end"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
                     onSelect={(e) => {
@@ -296,7 +318,12 @@ export function CandidatesTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/candidates/${row.original.id}`)}
+                  onClick={(event) => {
+                    if (isInteractiveTarget(event.target)) return;
+                    if (!deletedIds.has(row.original.id)) {
+                      router.push(`/candidates/${row.original.id}`);
+                    }
+                  }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
