@@ -77,6 +77,23 @@ export async function POST(req: NextRequest) {
 
   const n8nRunId = uuidv4();
 
+  // Deduct credit FIRST before creating candidate
+  let deductionResult;
+  try {
+    // Create a temporary candidate ID for deduction tracking
+    const tempCandidateId = uuidv4();
+    deductionResult = await deductCredit(session.user.id, tempCandidateId);
+  } catch (error) {
+    console.error('Credit deduction failed:', error);
+    // Clean up file on deduction failure
+    await fs.unlink(filePath);
+    return NextResponse.json(
+      { error: "Credit deduction failed. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  // Only create candidate AFTER successful credit deduction
   const candidate = await prisma.candidate.create({
     data: {
       name: candidateValidation.data.name,
@@ -92,18 +109,6 @@ export async function POST(req: NextRequest) {
       submittedById: session.user.id,
     },
   });
-
-  // Deduct credit BEFORE n8n
-  let deductionResult;
-  try {
-    deductionResult = await deductCredit(session.user.id, candidate.id);
-  } catch (error) {
-    console.error('Credit deduction failed:', error);
-    return NextResponse.json(
-      { error: "Credit deduction failed. Please try again." },
-      { status: 500 }
-    );
-  }
 
   // Try n8n
   try {
@@ -122,41 +127,48 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Failed to send to n8n:", error);
 
-    // Refund credit since n8n failed
-    if (deductionResult.source === 'paid') {
-      const refundedUser = await prisma.user.update({
-        where: { id: session.user.id },
-        data: { creditBalance: { increment: 1 } },
-      });
+    // Clean up file on n8n failure
+    await fs.unlink(filePath);
 
-      await prisma.transaction.create({
-        data: {
-          userId: session.user.id,
-          type: 'refund',
-          creditDelta: 1,
-          balanceAfter: refundedUser.creditBalance,
-          amountIdr: null,
-          description: 'Refund: screening service unavailable',
-          metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
-        },
+    // Refund credit since n8n failed - use atomic transactions
+    if (deductionResult.source === 'paid') {
+      await prisma.$transaction(async (tx) => {
+        const refundedUser = await tx.user.update({
+          where: { id: session.user.id },
+          data: { creditBalance: { increment: 1 } },
+        });
+
+        await tx.transaction.create({
+          data: {
+            userId: session.user.id,
+            type: 'refund',
+            creditDelta: 1,
+            balanceAfter: refundedUser.creditBalance,
+            amountIdr: null,
+            description: 'Refund: screening service unavailable',
+            metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
+          },
+        });
       });
     } else {
-      // Was free quota - restore it
-      const restoredUser = await prisma.user.update({
-        where: { id: session.user.id },
-        data: { dailyQuotaUsed: { decrement: 1 } },
-      });
+      // Was free quota - restore it atomically
+      await prisma.$transaction(async (tx) => {
+        const restoredUser = await tx.user.update({
+          where: { id: session.user.id },
+          data: { dailyQuotaUsed: { decrement: 1 } },
+        });
 
-      await prisma.transaction.create({
-        data: {
-          userId: session.user.id,
-          type: 'refund',
-          creditDelta: 0,
-          balanceAfter: restoredUser.creditBalance,
-          amountIdr: null,
-          description: 'Quota restored: screening service unavailable',
-          metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
-        },
+        await tx.transaction.create({
+          data: {
+            userId: session.user.id,
+            type: 'refund',
+            creditDelta: 0,
+            balanceAfter: restoredUser.creditBalance,
+            amountIdr: null,
+            description: 'Quota restored: screening service unavailable',
+            metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
+          },
+        });
       });
     }
 
