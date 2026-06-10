@@ -11,20 +11,47 @@ async function main() {
   const defaultPassword = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(16).toString("hex");
   const passwordHash = hashSync(defaultPassword, 10);
 
-  await prisma.user.upsert({
+  // Create/update admin user
+  const admin = await prisma.user.upsert({
     where: { email: "hrd@superhrd.com" },
-    update: {},
+    update: {
+      isAdmin: true,
+    },
     create: {
       name: "HRD Admin",
       email: "hrd@superhrd.com",
       passwordHash,
+      isAdmin: true,
+      creditBalance: 0,
+      dailyQuotaUsed: 0,
+      lastQuotaDate: "",
     },
   });
 
-  console.log("Seed completed: HRD Admin user created");
-  console.log(`Email: hrd@superhrd.com`);
-  console.log(`Password: ${defaultPassword}`);
-  console.log("Save this password! It will not be shown again.");
+  console.log("Admin user created/updated:", admin.email);
+
+  // Create regular test user
+  const testPassword = hashSync("test123", 10);
+
+  const testUser = await prisma.user.upsert({
+    where: { email: "test@superhrd.com" },
+    update: {},
+    create: {
+      name: "Test User",
+      email: "test@superhrd.com",
+      passwordHash: testPassword,
+      isAdmin: false,
+      creditBalance: 10,
+      dailyQuotaUsed: 0,
+      lastQuotaDate: "",
+    },
+  });
+
+  console.log("Test user created/updated:", testUser.email);
+
+  console.log("\nCredentials:");
+  console.log(`Admin: hrd@superhrd.com / ${defaultPassword}`);
+  console.log(`Test:  test@superhrd.com / test123`);
 
   await prisma.$disconnect();
 }
