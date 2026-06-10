@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
+import { canUserScreen, deductCredit } from "@/lib/credits";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
@@ -12,6 +13,18 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Add credit check
+  const creditCheck = await canUserScreen(session.user.id);
+  if (!creditCheck.canScreen) {
+    return NextResponse.json(
+      {
+        error: "Insufficient credit. Please top up your account.",
+        reason: creditCheck.reason
+      },
+      { status: 402 }
+    );
   }
 
   const formData = await req.formData();
@@ -80,6 +93,19 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Deduct credit BEFORE n8n
+  let deductionResult;
+  try {
+    deductionResult = await deductCredit(session.user.id, candidate.id);
+  } catch (error) {
+    console.error('Credit deduction failed:', error);
+    return NextResponse.json(
+      { error: "Credit deduction failed. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  // Try n8n
   try {
     await sendToN8n({
       fileBuffer,
@@ -95,16 +121,60 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Failed to send to n8n:", error);
+
+    // Refund credit since n8n failed
+    if (deductionResult.source === 'paid') {
+      const refundedUser = await prisma.user.update({
+        where: { id: session.user.id },
+        data: { creditBalance: { increment: 1 } },
+      });
+
+      await prisma.transaction.create({
+        data: {
+          userId: session.user.id,
+          type: 'refund',
+          creditDelta: 1,
+          balanceAfter: refundedUser.creditBalance,
+          amountIdr: null,
+          description: 'Refund: screening service unavailable',
+          metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
+        },
+      });
+    } else {
+      // Was free quota - restore it
+      const restoredUser = await prisma.user.update({
+        where: { id: session.user.id },
+        data: { dailyQuotaUsed: { decrement: 1 } },
+      });
+
+      await prisma.transaction.create({
+        data: {
+          userId: session.user.id,
+          type: 'refund',
+          creditDelta: 0,
+          balanceAfter: restoredUser.creditBalance,
+          amountIdr: null,
+          description: 'Quota restored: screening service unavailable',
+          metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
+        },
+      });
+    }
+
     await prisma.candidate.update({
       where: { id: candidate.id },
       data: { status: "failed" },
     });
 
     return NextResponse.json(
-      { error: "File uploaded but failed to send to screening service" },
-      { status: 502 }
+      { error: "Screening service unavailable. Credit refunded." },
+      { status: 503 }
     );
   }
 
-  return NextResponse.json({ candidateId: candidate.id, status: "processing" });
+  return NextResponse.json({
+    candidateId: candidate.id,
+    status: "processing",
+    creditUsed: deductionResult.source,
+    remainingQuota: deductionResult.quotaRemaining,
+  });
 }
