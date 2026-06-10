@@ -99,8 +99,8 @@ model TopupRequest {
   status         TopupStatus   @default(pending)
   proofImageUrl  String?
   notes          String?
-  approvedBy     String?
-  approvedAt     DateTime?
+  processedBy    String?
+  processedAt    DateTime?
   expiresAt      DateTime      @default(now())
   createdAt      DateTime      @default(now())
 

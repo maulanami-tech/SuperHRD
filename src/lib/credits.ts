@@ -320,8 +320,8 @@ export async function approveTopup(
       },
       data: {
         status: 'approved',
-        approvedAt: new Date(),
-        approvedBy: adminUserId,
+        processedAt: new Date(),
+        processedBy: adminUserId,
       },
     });
 
@@ -408,24 +408,28 @@ export async function rejectTopup(
     return { success: true };
   }
 
-  // Update status to rejected with reason using updateMany
-  const updateResult = await prisma.topupRequest.updateMany({
-    where: {
-      id: topupId,
-      status: 'pending',
-    },
-    data: {
-      status: 'rejected',
-      approvedAt: new Date(),
-      approvedBy: adminUserId,
-      notes: reason,
-    },
+  // Update status to rejected with reason using updateMany in transaction
+  const result = await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.topupRequest.updateMany({
+      where: {
+        id: topupId,
+        status: 'pending',
+      },
+      data: {
+        status: 'rejected',
+        processedAt: new Date(),
+        processedBy: adminUserId,
+        notes: reason,
+      },
+    });
+
+    // If count=0, throw error
+    if (updateResult.count === 0) {
+      throw new Error('Topup request is not pending');
+    }
+
+    return { success: true };
   });
 
-  // If count=0, throw error
-  if (updateResult.count === 0) {
-    throw new Error('Topup request is not pending');
-  }
-
-  return { success: true };
+  return result;
 }
