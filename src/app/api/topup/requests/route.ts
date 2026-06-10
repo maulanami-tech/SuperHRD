@@ -15,10 +15,15 @@ export async function GET(req: NextRequest) {
   const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
   const status = searchParams.get('status');
 
+  const VALID_STATUSES = ['pending', 'approved', 'rejected', 'expired'] as const;
+
   try {
     const whereClause: Prisma.TopupRequestWhereInput = { userId: session.user.id };
     if (status && status !== 'all') {
-      whereClause.status = status as any;
+      if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+        return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+      }
+      whereClause.status = status as typeof VALID_STATUSES[number];
     }
 
     const requests = await prisma.topupRequest.findMany({

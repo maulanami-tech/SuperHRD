@@ -58,8 +58,8 @@ export async function canUserScreen(userId: string): Promise<{
 }
 
 /**
- * Deduct credit from user atomically
- * Returns object with success status, source, and balance info
+ * Deduct credit from user atomically using a database transaction.
+ * All operations are wrapped in $transaction to prevent race conditions.
  */
 export async function deductCredit(
   userId: string,
@@ -72,146 +72,110 @@ export async function deductCredit(
 }> {
   const today = getCurrentDateWIB();
 
-  // First, try to reset quota if needed
-  const resetResult = await prisma.user.updateMany({
-    where: {
-      id: userId,
-      lastQuotaDate: { not: today },
-    },
-    data: {
-      dailyQuotaUsed: 0, // Reset quota usage
-      lastQuotaDate: today,
-    },
-  });
-
-  // If we reset the quota, use it
-  if (resetResult.count > 0) {
-    const deductResult = await prisma.user.updateMany({
-      where: {
-        id: userId,
-        dailyQuotaUsed: { lt: DAILY_QUOTA_LIMIT },
-      },
-      data: {
-        dailyQuotaUsed: { increment: 1 },
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: {
+        creditBalance: true,
+        dailyQuotaUsed: true,
+        lastQuotaDate: true,
       },
     });
 
-    if (deductResult.count > 0) {
-      // After reset, dailyQuotaUsed is now 1, creditBalance unchanged
-      const user = await prisma.user.findUnique({
+    if (!user) {
+      throw new Error(`User not found: ${userId}`);
+    }
+
+    let dailyQuotaUsed = user.dailyQuotaUsed;
+
+    // Reset quota if date changed
+    if (user.lastQuotaDate !== today) {
+      dailyQuotaUsed = 0;
+      await tx.user.update({
         where: { id: userId },
-        select: { creditBalance: true },
+        data: {
+          dailyQuotaUsed: 0,
+          lastQuotaDate: today,
+        },
+      });
+    }
+
+    // Try to use daily quota
+    if (dailyQuotaUsed < DAILY_QUOTA_LIMIT) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { dailyQuotaUsed: { increment: 1 } },
       });
 
-      if (!user) {
-        throw new Error(`User not found after quota reset: ${userId}`);
+      const updatedUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { creditBalance: true, dailyQuotaUsed: true },
+      });
+
+      if (!updatedUser) {
+        throw new Error(`User not found after quota deduction: ${userId}`);
       }
 
-      await recordTransaction(userId, candidateId, 'QUOTA', user.creditBalance);
+      await tx.transaction.create({
+        data: {
+          userId,
+          type: 'daily_quota',
+          creditDelta: -1,
+          balanceAfter: updatedUser.creditBalance,
+          description: `Screening candidate ${candidateId} using daily quota`,
+          metadata: JSON.stringify({ candidateId }),
+        },
+      });
 
       return {
         success: true,
         source: 'quota',
-        newBalance: user.creditBalance,
-        quotaRemaining: DAILY_QUOTA_LIMIT - 1,
+        newBalance: updatedUser.creditBalance,
+        quotaRemaining: DAILY_QUOTA_LIMIT - updatedUser.dailyQuotaUsed,
       };
     }
-  }
 
-  // Try to use existing quota
-  const quotaResult = await prisma.user.updateMany({
-    where: {
-      id: userId,
-      dailyQuotaUsed: { lt: DAILY_QUOTA_LIMIT },
-      lastQuotaDate: today,
-    },
-    data: {
-      dailyQuotaUsed: { increment: 1 },
-    },
-  });
+    // Try to deduct paid credits
+    if (user.creditBalance > 0) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { creditBalance: { decrement: 1 } },
+      });
 
-  if (quotaResult.count > 0) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { creditBalance: true, dailyQuotaUsed: true },
-    });
+      const updatedUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { creditBalance: true },
+      });
 
-    if (!user) {
-      throw new Error(`User not found after quota deduction: ${userId}`);
+      if (!updatedUser) {
+        throw new Error(`User not found after credit deduction: ${userId}`);
+      }
+
+      await tx.transaction.create({
+        data: {
+          userId,
+          type: 'deduct_screening',
+          creditDelta: -1,
+          balanceAfter: updatedUser.creditBalance,
+          description: `Screening candidate ${candidateId} using paid credits`,
+          metadata: JSON.stringify({ candidateId }),
+        },
+      });
+
+      return {
+        success: true,
+        source: 'paid',
+        newBalance: updatedUser.creditBalance,
+      };
     }
 
-    await recordTransaction(userId, candidateId, 'QUOTA', user.creditBalance);
-
+    // No quota or credits available
     return {
-      success: true,
+      success: false,
       source: 'quota',
       newBalance: user.creditBalance,
-      quotaRemaining: DAILY_QUOTA_LIMIT - user.dailyQuotaUsed,
+      quotaRemaining: 0,
     };
-  }
-
-  // Try to deduct paid credits
-  const creditResult = await prisma.user.updateMany({
-    where: {
-      id: userId,
-      creditBalance: { gt: 0 },
-    },
-    data: {
-      creditBalance: { decrement: 1 },
-    },
-  });
-
-  if (creditResult.count > 0) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { creditBalance: true },
-    });
-
-    if (!user) {
-      throw new Error(`User not found after credit deduction: ${userId}`);
-    }
-
-    await recordTransaction(userId, candidateId, 'PAID', user.creditBalance);
-
-    return {
-      success: true,
-      source: 'paid',
-      newBalance: user.creditBalance,
-    };
-  }
-
-  // Fallback - get current balance and return failure
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { creditBalance: true, dailyQuotaUsed: true },
-  });
-
-  return {
-    success: false,
-    source: 'quota',
-    newBalance: user?.creditBalance || 0,
-    quotaRemaining: 0,
-  };
-}
-
-/**
- * Record credit transaction for audit trail
- */
-async function recordTransaction(
-  userId: string,
-  candidateId: string,
-  type: 'QUOTA' | 'PAID',
-  balanceAfter: number
-): Promise<void> {
-  await prisma.transaction.create({
-    data: {
-      userId,
-      type: type === 'QUOTA' ? 'daily_quota' : 'deduct_screening',
-      creditDelta: -1,
-      balanceAfter,
-      description: `Screening candidate ${candidateId} using ${type === 'QUOTA' ? 'daily quota' : 'paid credits'}`,
-      metadata: JSON.stringify({ candidateId }),
-    },
   });
 }
 

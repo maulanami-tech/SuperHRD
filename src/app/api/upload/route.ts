@@ -69,7 +69,14 @@ export async function POST(req: NextRequest) {
   const uploadsDir = path.join(process.cwd(), "uploads");
   await fs.mkdir(uploadsDir, { recursive: true });
 
-  const fileExtension = file.name.split(".").pop();
+  const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx'];
+  const fileExtension = (file.name.split(".").pop() || '').toLowerCase();
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    return NextResponse.json(
+      { error: `Unsupported file type. Allowed types: ${ALLOWED_EXTENSIONS.join(', ')}` },
+      { status: 400 }
+    );
+  }
   const fileName = `${uuidv4()}.${fileExtension}`;
   const filePath = path.join(uploadsDir, fileName);
 
@@ -152,24 +159,34 @@ export async function POST(req: NextRequest) {
         });
       });
     } else {
-      // Was free quota - restore it atomically
+      // Was free quota - restore it atomically with floor check
       await prisma.$transaction(async (tx) => {
-        const restoredUser = await tx.user.update({
-          where: { id: session.user.id },
+        const restoreResult = await tx.user.updateMany({
+          where: {
+            id: session.user.id,
+            dailyQuotaUsed: { gt: 0 },
+          },
           data: { dailyQuotaUsed: { decrement: 1 } },
         });
 
-        await tx.transaction.create({
-          data: {
-            userId: session.user.id,
-            type: 'refund',
-            creditDelta: 0,
-            balanceAfter: restoredUser.creditBalance,
-            amountIdr: null,
-            description: 'Quota restored: screening service unavailable',
-            metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
-          },
+        const restoredUser = await tx.user.findUnique({
+          where: { id: session.user.id },
+          select: { creditBalance: true },
         });
+
+        if (restoreResult.count > 0 && restoredUser) {
+          await tx.transaction.create({
+            data: {
+              userId: session.user.id,
+              type: 'refund',
+              creditDelta: 0,
+              balanceAfter: restoredUser.creditBalance,
+              amountIdr: null,
+              description: 'Quota restored: screening service unavailable',
+              metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
+            },
+          });
+        }
       });
     }
 

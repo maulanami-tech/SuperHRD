@@ -16,9 +16,14 @@ export async function GET(req: NextRequest) {
   const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
   const type = searchParams.get('type');
 
+  const VALID_TYPES = ['topup_qris', 'topup_stripe', 'deduct_screening', 'admin_adjustment', 'daily_quota', 'refund'] as const;
+
   try {
     const whereClause: Prisma.TransactionWhereInput = { userId: session.user.id };
     if (type && type !== 'all') {
+      if (!VALID_TYPES.includes(type as typeof VALID_TYPES[number])) {
+        return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+      }
       whereClause.type = type as TransactionType;
     }
 
