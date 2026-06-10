@@ -14,6 +14,20 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith("/admin")) {
+    const sessionToken =
+      req.cookies.get("authjs.session-token") ??
+      req.cookies.get("__Secure-authjs.session-token");
+
+    if (!sessionToken) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+
+    // Note: isAdmin check happens in the actual route handler
+    // Middleware only ensures authentication
+    return NextResponse.next();
+  }
+
   const sessionToken =
     req.cookies.get("authjs.session-token") ??
     req.cookies.get("__Secure-authjs.session-token");
