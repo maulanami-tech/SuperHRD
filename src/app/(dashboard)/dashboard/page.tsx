@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 
 export default function DashboardPage() {
+  const [balance, setBalance] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -32,6 +33,19 @@ export default function DashboardPage() {
     const cleanup = debounce(search);
     return cleanup;
   }, [search, debounce]);
+
+  useEffect(() => {
+    async function fetchBalance() {
+      try {
+        const res = await fetch('/api/credit/balance');
+        const data = await res.json();
+        setBalance(data);
+      } catch (error) {
+        console.error('Failed to load balance:', error);
+      }
+    }
+    fetchBalance();
+  }, []);
 
   const { candidates, isLoading, error, refetch } = useCandidates({
     search: debouncedSearch,
@@ -52,6 +66,21 @@ export default function DashboardPage() {
           </Link>
         </Button>
       </Header>
+
+      {balance && (
+        <div className="mx-4 md:mx-6 mb-4 flex items-center justify-between bg-card border rounded-lg p-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Credit Balance</p>
+            <p className="text-2xl font-bold">{balance.creditBalance} credits</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Free quota: {balance.dailyQuotaRemaining}/5 today
+            </p>
+          </div>
+          <Link href="/topup">
+            <Button>Top Up</Button>
+          </Link>
+        </div>
+      )}
 
       <main className="flex-1 space-y-4 p-4 md:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
