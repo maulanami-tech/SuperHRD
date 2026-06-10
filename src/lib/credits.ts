@@ -16,7 +16,12 @@ export function getCurrentDateWIB(): string {
 /**
  * Check if user can screen a candidate (has quota or credits available)
  */
-export async function canUserScreen(userId: string): Promise<boolean> {
+export async function canUserScreen(userId: string): Promise<{
+  canScreen: boolean;
+  source?: 'quota' | 'paid';
+  reason?: string;
+  quotaRemaining?: number;
+}> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -34,22 +39,36 @@ export async function canUserScreen(userId: string): Promise<boolean> {
 
   // Check if quota needs reset
   if (user.lastQuotaDate !== today) {
-    return true; // Will reset on first use
+    return { canScreen: true, source: 'quota', quotaRemaining: 5 };
   }
 
   // Check if has remaining quota or paid credits
-  const remainingQuota = 3 - user.dailyQuotaUsed;
-  return remainingQuota > 0 || user.creditBalance > 0;
+  const remainingQuota = 5 - user.dailyQuotaUsed;
+
+  if (remainingQuota > 0) {
+    return { canScreen: true, source: 'quota', quotaRemaining: remainingQuota };
+  }
+
+  if (user.creditBalance > 0) {
+    return { canScreen: true, source: 'paid' };
+  }
+
+  return { canScreen: false, reason: 'Insufficient quota and credits' };
 }
 
 /**
  * Deduct credit from user atomically
- * Returns true if deduction succeeded, false if insufficient credits
+ * Returns object with success status, source, and balance info
  */
 export async function deductCredit(
   userId: string,
   candidateId: string
-): Promise<boolean> {
+): Promise<{
+  success: boolean;
+  source: 'quota' | 'paid';
+  newBalance: number;
+  quotaRemaining?: number;
+}> {
   const today = getCurrentDateWIB();
 
   // First, try to reset quota if needed
@@ -69,7 +88,7 @@ export async function deductCredit(
     const deductResult = await prisma.user.updateMany({
       where: {
         id: userId,
-        dailyQuotaUsed: { lt: 3 },
+        dailyQuotaUsed: { lt: 5 },
       },
       data: {
         dailyQuotaUsed: { increment: 1 },
@@ -78,7 +97,16 @@ export async function deductCredit(
 
     if (deductResult.count > 0) {
       await recordTransaction(userId, candidateId, 'QUOTA');
-      return true;
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { creditBalance: true, dailyQuotaUsed: true },
+      });
+      return {
+        success: true,
+        source: 'quota',
+        newBalance: user!.creditBalance,
+        quotaRemaining: 5 - user!.dailyQuotaUsed,
+      };
     }
   }
 
@@ -86,7 +114,7 @@ export async function deductCredit(
   const quotaResult = await prisma.user.updateMany({
     where: {
       id: userId,
-      dailyQuotaUsed: { lt: 3 },
+      dailyQuotaUsed: { lt: 5 },
       lastQuotaDate: today,
     },
     data: {
@@ -96,7 +124,16 @@ export async function deductCredit(
 
   if (quotaResult.count > 0) {
     await recordTransaction(userId, candidateId, 'QUOTA');
-    return true;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { creditBalance: true, dailyQuotaUsed: true },
+    });
+    return {
+      success: true,
+      source: 'quota',
+      newBalance: user!.creditBalance,
+      quotaRemaining: 5 - user!.dailyQuotaUsed,
+    };
   }
 
   // Try to deduct paid credits
@@ -112,10 +149,29 @@ export async function deductCredit(
 
   if (creditResult.count > 0) {
     await recordTransaction(userId, candidateId, 'PAID');
-    return true;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { creditBalance: true },
+    });
+    return {
+      success: true,
+      source: 'paid',
+      newBalance: user!.creditBalance,
+    };
   }
 
-  return false;
+  // Fallback - get current balance and return failure
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { creditBalance: true, dailyQuotaUsed: true },
+  });
+
+  return {
+    success: false,
+    source: 'quota',
+    newBalance: user?.creditBalance || 0,
+    quotaRemaining: 0,
+  };
 }
 
 /**
@@ -155,7 +211,6 @@ export async function getUserBalance(userId: string): Promise<{
   creditBalance: number;
   dailyQuotaUsed: number;
   dailyQuotaRemaining: number;
-  lastQuotaDate: string;
 }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -172,12 +227,11 @@ export async function getUserBalance(userId: string): Promise<{
 
   const today = getCurrentDateWIB();
   const dailyQuotaUsed = user.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
-  const dailyQuotaRemaining = 3 - dailyQuotaUsed;
+  const dailyQuotaRemaining = 5 - dailyQuotaUsed;
 
   return {
     creditBalance: user.creditBalance,
     dailyQuotaUsed,
     dailyQuotaRemaining,
-    lastQuotaDate: user.lastQuotaDate,
   };
 }

@@ -8,14 +8,14 @@ export const topupRequestSchema = z.object({
     (val) => VALID_BUNDLE_AMOUNTS.includes(val as typeof VALID_BUNDLE_AMOUNTS[number]),
     { message: `Amount must be one of: ${VALID_BUNDLE_AMOUNTS.join(', ')}` }
   ),
-  paymentMethod: z.string().min(1, 'Payment method is required'),
-  proofImageUrl: z.string().url('Must be a valid URL'),
+  paymentMethod: z.enum(['qris', 'stripe']),
+  proofImageUrl: z.string().url().optional(),
 });
 
 export const adminTopupActionSchema = z.object({
-  topupId: z.string().min(1, 'Topup ID is required'),
-  action: z.enum(['APPROVE', 'REJECT']),
-  notes: z.string().optional(),
+  topupId: z.string().cuid(),
+  action: z.enum(['approve', 'reject']),
+  notes: z.string().max(500).optional(),
 });
 
 // Export types
