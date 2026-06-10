@@ -15,6 +15,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Generate or extract idempotency key
+  const idempotencyKey = req.headers.get('idempotency-key') || `auto-${uuidv4()}`;
+
+  // Check for existing request with this idempotency key
+  const existingCandidate = await prisma.candidate.findUnique({
+    where: { idempotencyKey },
+    include: { screeningResult: true },
+  });
+
+  if (existingCandidate) {
+    // Return cached response - determine credit source from user's current state
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { dailyQuotaUsed: true },
+    });
+
+    return NextResponse.json({
+      candidateId: existingCandidate.id,
+      status: existingCandidate.status,
+      cached: true,
+      creditUsed: user && user.dailyQuotaUsed > 0 ? 'quota' : 'paid',
+      remainingQuota: user ? Math.max(0, 10 - user.dailyQuotaUsed) : 0,
+    });
+  }
+
   // Add credit check
   const creditCheck = await canUserScreen(session.user.id);
   if (!creditCheck.canScreen) {
@@ -113,6 +138,7 @@ export async function POST(req: NextRequest) {
       filePath,
       status: "pending",
       n8nRunId,
+      idempotencyKey,
       submittedBy: session.user.name ?? session.user.email ?? "Unknown",
       submittedById: session.user.id,
     },

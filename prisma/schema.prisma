@@ -34,6 +34,7 @@ model Candidate {
   kriteria        String?
   prompt          String?
   n8nRunId        String?         @unique
+  idempotencyKey  String?         @unique
   submittedBy     String
   submittedById   String
   submittedByUser User            @relation(fields: [submittedById], references: [id])
