@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@/generated/prisma/client';
+import { TransactionType } from '@/generated/prisma/enums';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,14 +12,14 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const limit = parseInt(searchParams.get('limit') || '20');
-  const offset = parseInt(searchParams.get('offset') || '0');
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20'), 1), 100);
+  const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
   const type = searchParams.get('type');
 
   try {
-    const whereClause: any = { userId: session.user.id };
+    const whereClause: Prisma.TransactionWhereInput = { userId: session.user.id };
     if (type && type !== 'all') {
-      whereClause.type = type;
+      whereClause.type = type as TransactionType;
     }
 
     const transactions = await prisma.transaction.findMany({
