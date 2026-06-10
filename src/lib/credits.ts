@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 export const WIB_TIMEZONE = 'Asia/Jakarta';
+export const DAILY_QUOTA_LIMIT = 5;
 
 /**
  * Get current date in WIB timezone as yyyy-MM-dd string
@@ -32,18 +33,18 @@ export async function canUserScreen(userId: string): Promise<{
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error(`User not found: ${userId}`);
   }
 
   const today = getCurrentDateWIB();
 
   // Check if quota needs reset
   if (user.lastQuotaDate !== today) {
-    return { canScreen: true, source: 'quota', quotaRemaining: 5 };
+    return { canScreen: true, source: 'quota', quotaRemaining: DAILY_QUOTA_LIMIT };
   }
 
   // Check if has remaining quota or paid credits
-  const remainingQuota = 5 - user.dailyQuotaUsed;
+  const remainingQuota = DAILY_QUOTA_LIMIT - user.dailyQuotaUsed;
 
   if (remainingQuota > 0) {
     return { canScreen: true, source: 'quota', quotaRemaining: remainingQuota };
@@ -88,7 +89,7 @@ export async function deductCredit(
     const deductResult = await prisma.user.updateMany({
       where: {
         id: userId,
-        dailyQuotaUsed: { lt: 5 },
+        dailyQuotaUsed: { lt: DAILY_QUOTA_LIMIT },
       },
       data: {
         dailyQuotaUsed: { increment: 1 },
@@ -96,16 +97,23 @@ export async function deductCredit(
     });
 
     if (deductResult.count > 0) {
-      await recordTransaction(userId, candidateId, 'QUOTA');
+      // After reset, dailyQuotaUsed is now 1, creditBalance unchanged
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { creditBalance: true, dailyQuotaUsed: true },
+        select: { creditBalance: true },
       });
+
+      if (!user) {
+        throw new Error(`User not found after quota reset: ${userId}`);
+      }
+
+      await recordTransaction(userId, candidateId, 'QUOTA', user.creditBalance);
+
       return {
         success: true,
         source: 'quota',
-        newBalance: user!.creditBalance,
-        quotaRemaining: 5 - user!.dailyQuotaUsed,
+        newBalance: user.creditBalance,
+        quotaRemaining: DAILY_QUOTA_LIMIT - 1,
       };
     }
   }
@@ -114,7 +122,7 @@ export async function deductCredit(
   const quotaResult = await prisma.user.updateMany({
     where: {
       id: userId,
-      dailyQuotaUsed: { lt: 5 },
+      dailyQuotaUsed: { lt: DAILY_QUOTA_LIMIT },
       lastQuotaDate: today,
     },
     data: {
@@ -123,16 +131,22 @@ export async function deductCredit(
   });
 
   if (quotaResult.count > 0) {
-    await recordTransaction(userId, candidateId, 'QUOTA');
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { creditBalance: true, dailyQuotaUsed: true },
     });
+
+    if (!user) {
+      throw new Error(`User not found after quota deduction: ${userId}`);
+    }
+
+    await recordTransaction(userId, candidateId, 'QUOTA', user.creditBalance);
+
     return {
       success: true,
       source: 'quota',
-      newBalance: user!.creditBalance,
-      quotaRemaining: 5 - user!.dailyQuotaUsed,
+      newBalance: user.creditBalance,
+      quotaRemaining: DAILY_QUOTA_LIMIT - user.dailyQuotaUsed,
     };
   }
 
@@ -148,15 +162,21 @@ export async function deductCredit(
   });
 
   if (creditResult.count > 0) {
-    await recordTransaction(userId, candidateId, 'PAID');
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { creditBalance: true },
     });
+
+    if (!user) {
+      throw new Error(`User not found after credit deduction: ${userId}`);
+    }
+
+    await recordTransaction(userId, candidateId, 'PAID', user.creditBalance);
+
     return {
       success: true,
       source: 'paid',
-      newBalance: user!.creditBalance,
+      newBalance: user.creditBalance,
     };
   }
 
@@ -180,24 +200,15 @@ export async function deductCredit(
 async function recordTransaction(
   userId: string,
   candidateId: string,
-  type: 'QUOTA' | 'PAID'
+  type: 'QUOTA' | 'PAID',
+  balanceAfter: number
 ): Promise<void> {
-  // Get user's current balance for balanceAfter field
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { creditBalance: true },
-  });
-
-  if (!user) {
-    throw new Error('User not found');
-  }
-
   await prisma.transaction.create({
     data: {
       userId,
       type: type === 'QUOTA' ? 'daily_quota' : 'deduct_screening',
       creditDelta: -1,
-      balanceAfter: user.creditBalance,
+      balanceAfter,
       description: `Screening candidate ${candidateId} using ${type === 'QUOTA' ? 'daily quota' : 'paid credits'}`,
       metadata: JSON.stringify({ candidateId }),
     },
@@ -222,12 +233,12 @@ export async function getUserBalance(userId: string): Promise<{
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error(`User not found: ${userId}`);
   }
 
   const today = getCurrentDateWIB();
   const dailyQuotaUsed = user.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
-  const dailyQuotaRemaining = 5 - dailyQuotaUsed;
+  const dailyQuotaRemaining = DAILY_QUOTA_LIMIT - dailyQuotaUsed;
 
   return {
     creditBalance: user.creditBalance,
