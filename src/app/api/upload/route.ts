@@ -76,13 +76,13 @@ export async function POST(req: NextRequest) {
   await fs.writeFile(filePath, fileBuffer);
 
   const n8nRunId = uuidv4();
+  // Generate candidate ID before deduction to ensure consistent audit trail
+  const candidateId = uuidv4();
 
   // Deduct credit FIRST before creating candidate
   let deductionResult;
   try {
-    // Create a temporary candidate ID for deduction tracking
-    const tempCandidateId = uuidv4();
-    deductionResult = await deductCredit(session.user.id, tempCandidateId);
+    deductionResult = await deductCredit(session.user.id, candidateId);
   } catch (error) {
     console.error('Credit deduction failed:', error);
     // Clean up file on deduction failure
@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
   // Only create candidate AFTER successful credit deduction
   const candidate = await prisma.candidate.create({
     data: {
+      id: candidateId,
       name: candidateValidation.data.name,
       email: candidateValidation.data.email ?? null,
       posisi: candidateValidation.data.posisi,
