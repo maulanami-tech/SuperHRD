@@ -70,7 +70,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Clear rate limit on success
         loginAttempts.delete(email);
         console.info(`[AUTH] Login success: email=${email} userId=${user.id}`);
-        return { id: user.id, name: user.name, email: user.email };
+        return { id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin };
       },
     }),
   ],
@@ -80,11 +80,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id;
+        // Fetch isAdmin from database
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { isAdmin: true },
+        });
+        token.isAdmin = dbUser?.isAdmin ?? false;
+      }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) session.user.id = token.id as string;
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.isAdmin = token.isAdmin as boolean;
+      }
       return session;
     },
   },
