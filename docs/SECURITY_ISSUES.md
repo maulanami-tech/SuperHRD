@@ -1,4 +1,15 @@
-# Security Issues — Ready to File
+# Security Issues — Status Update
+
+**Last Updated:** 2026-06-11
+
+## ✅ Resolved (P1 Fixes Applied)
+
+- **Issue 1: Upload endpoint idempotency** - RESOLVED via `idempotencyKey` field and cached response
+- **Architectural: JWT admin validation** - RESOLVED via real-time DB query on admin requests
+
+---
+
+## 🔄 Remaining Issues
 
 These issues were identified during the credit payment system security audit (2026-06-11).
 Fixes for 7 findings have been committed. The following require architectural decisions

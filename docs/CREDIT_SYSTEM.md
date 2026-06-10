@@ -88,6 +88,31 @@ const wibDate = toZonedTime(new Date(), 'Asia/Jakarta');
 - `POST /api/admin/topup/[id]/approve` - Approve request
 - `POST /api/admin/topup/[id]/reject` - Reject request
 
+### Idempotency
+
+The `/api/upload` endpoint supports idempotency via the `Idempotency-Key` header:
+
+```bash
+curl -X POST /api/upload \
+  -H "Idempotency-Key: unique-request-id" \
+  -F "file=@cv.pdf"
+```
+
+**Features:**
+- If no key provided, one is auto-generated
+- Duplicate requests within 24 hours return cached response with `cached: true` flag
+- Prevents double-charging on network retries
+- Key format: any string (client's choice) or auto-generated UUID
+
+**Response for duplicate:**
+```json
+{
+  "candidateId": "clxxx...",
+  "status": "processing",
+  "cached": true
+}
+```
+
 ## Admin Guide
 
 ### Approving Top-Ups
