@@ -25,12 +25,14 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Failed to approve top-up:', error);
+    const message = error?.message || '';
 
-    if (error.message.includes('already')) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 409 }
-      );
+    if (message.includes('not found')) {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+
+    if (message.includes('Cannot approve') || message.includes('not pending')) {
+      return NextResponse.json({ error: message }, { status: 409 });
     }
 
     return NextResponse.json(

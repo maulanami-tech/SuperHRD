@@ -38,6 +38,16 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Failed to reject top-up:', error);
+    const message = error?.message || '';
+
+    if (message.includes('not found')) {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+
+    if (message.includes('Cannot reject')) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+
     return NextResponse.json(
       { error: 'Failed to reject top-up' },
       { status: 500 }
