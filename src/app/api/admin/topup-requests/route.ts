@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50'), 1), 100);
+  const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
   const status = searchParams.get('status') || 'all';
 
   try {
@@ -31,7 +33,8 @@ export async function GET(req: NextRequest) {
     const requests = await prisma.topupRequest.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: limit,
+      skip: offset,
       include: {
         user: {
           select: {
@@ -44,12 +47,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    const total = await prisma.topupRequest.count({ where: whereClause });
     const pendingCount = await prisma.topupRequest.count({
       where: { status: 'pending' },
     });
 
     return NextResponse.json({
       requests,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
       pendingCount,
     });
   } catch (error) {
