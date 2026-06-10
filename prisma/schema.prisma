@@ -8,12 +8,18 @@ datasource db {
 }
 
 model User {
-  id           String      @id @default(cuid())
-  name         String
-  email        String      @unique
-  passwordHash String
-  createdAt    DateTime    @default(now())
-  candidates   Candidate[]
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  passwordHash   String
+  creditBalance  Int            @default(0)
+  dailyQuotaUsed Int            @default(0)
+  lastQuotaDate  String         @default("")
+  isAdmin        Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  candidates     Candidate[]
+  transactions   Transaction[]
+  topupRequests  TopupRequest[]
 }
 
 model Candidate {
@@ -45,4 +51,61 @@ model ScreeningResult {
   criteria     String
   rawResponse  String?
   scoredAt     DateTime  @default(now())
+}
+
+enum TransactionType {
+  topup_qris
+  topup_stripe
+  deduct_screening
+  admin_adjustment
+  daily_quota
+  refund
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id])
+  type          TransactionType
+  creditDelta   Int
+  balanceAfter  Int
+  amountIdr     Int?
+  description   String
+  metadata      String?
+  createdAt     DateTime        @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum PaymentMethod {
+  qris
+  stripe
+}
+
+enum TopupStatus {
+  pending
+  approved
+  rejected
+  expired
+}
+
+model TopupRequest {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  amountIdr      Int
+  creditAmount   Int
+  paymentMethod  PaymentMethod
+  status         TopupStatus   @default(pending)
+  proofImageUrl  String?
+  notes          String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
