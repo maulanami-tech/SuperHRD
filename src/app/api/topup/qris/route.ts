@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { topupRequestSchema } from '@/lib/zod-schemas/credits';
 import { addDays } from 'date-fns';
+import { BUNDLES } from '@/lib/credits';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -25,16 +26,24 @@ export async function POST(req: NextRequest) {
     const { amountIdr, proofImageUrl } = validation.data;
 
     // Calculate credits based on bundle
-    const BUNDLES = [
-      { amountIdr: 10000, credits: 20 },
-      { amountIdr: 50000, credits: 110 },
-      { amountIdr: 150000, credits: 350 },
-      { amountIdr: 500000, credits: 1250 },
-    ];
-
     const bundle = BUNDLES.find((b) => b.amountIdr === amountIdr);
     if (!bundle) {
       return NextResponse.json({ error: 'Invalid bundle' }, { status: 400 });
+    }
+
+    // Check for existing pending requests
+    const existingPending = await prisma.topupRequest.findFirst({
+      where: {
+        userId: session.user.id,
+        status: 'pending',
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (existingPending) {
+      return NextResponse.json(
+        { error: 'You already have a pending top-up request. Please wait for approval or let it expire.' },
+        { status: 400 }
+      );
     }
 
     // Create top-up request
