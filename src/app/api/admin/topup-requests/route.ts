@@ -6,7 +6,17 @@ import { Prisma } from '@/generated/prisma/client';
 export async function GET(req: NextRequest) {
   const session = await auth();
 
-  if (!session?.user?.id || !session.user.isAdmin) {
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Re-validate admin status from database
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true },
+  });
+
+  if (!user?.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
