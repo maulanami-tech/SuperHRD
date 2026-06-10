@@ -266,122 +266,113 @@ export async function approveTopup(
   adminUserId: string
 ): Promise<{
   success: boolean;
-  newBalance?: number;
-  creditAmount?: number;
-  message?: string;
+  newBalance: number;
+  creditAmount: number;
 }> {
-  try {
-    // Check topup request exists and get current status
-    const topup = await prisma.topupRequest.findUnique({
-      where: { id: topupId },
-      select: {
-        id: true,
-        userId: true,
-        amountIdr: true,
-        status: true,
+  // Fetch topup request with user relation
+  const topup = await prisma.topupRequest.findUnique({
+    where: { id: topupId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          creditBalance: true,
+        },
+      },
+    },
+  });
+
+  if (!topup) {
+    throw new Error('Topup request not found');
+  }
+
+  // Idempotent: if already approved, return success with current balance
+  if (topup.status === 'approved') {
+    const bundle = BUNDLES.find((b) => b.amountIdr === topup.amountIdr);
+    if (!bundle) {
+      throw new Error(`Invalid amount: ${topup.amountIdr}. No matching bundle found.`);
+    }
+    return {
+      success: true,
+      newBalance: topup.user.creditBalance,
+      creditAmount: bundle.credits,
+    };
+  }
+
+  // Cannot approve if rejected
+  if (topup.status === 'rejected') {
+    throw new Error(`Cannot approve ${topup.status} topup request`);
+  }
+
+  // Find matching bundle
+  const bundle = BUNDLES.find((b) => b.amountIdr === topup.amountIdr);
+  if (!bundle) {
+    throw new Error(`Invalid amount: ${topup.amountIdr}. No matching bundle found.`);
+  }
+
+  // Atomic approval: update topup status + increment user balance + record transaction
+  const result = await prisma.$transaction(async (tx) => {
+    // Conditional update: only update if status is pending
+    const updateResult = await tx.topupRequest.updateMany({
+      where: {
+        id: topupId,
+        status: 'pending',
+      },
+      data: {
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedBy: adminUserId,
       },
     });
 
-    if (!topup) {
-      return { success: false, message: 'Topup request not found' };
-    }
-
-    // Idempotent: if already approved, return success with current balance
-    if (topup.status === 'approved') {
-      const user = await prisma.user.findUnique({
-        where: { id: topup.userId },
-        select: { creditBalance: true },
+    // If no rows updated, check existing status and throw error
+    if (updateResult.count === 0) {
+      const existing = await tx.topupRequest.findUnique({
+        where: { id: topupId },
+        select: { status: true },
       });
-
-      const bundle = BUNDLES.find((b) => b.amountIdr === topup.amountIdr);
-      return {
-        success: true,
-        newBalance: user?.creditBalance || 0,
-        creditAmount: bundle?.credits || 0,
-        message: 'Already approved',
-      };
-    }
-
-    // Cannot approve if rejected or cancelled
-    if (topup.status === 'rejected' || topup.status === 'cancelled') {
-      return {
-        success: false,
-        message: `Cannot approve ${topup.status} topup request`,
-      };
-    }
-
-    // Find matching bundle
-    const bundle = BUNDLES.find((b) => b.amountIdr === topup.amountIdr);
-    if (!bundle) {
-      return {
-        success: false,
-        message: `Invalid amount: ${topup.amountIdr}. No matching bundle found.`,
-      };
-    }
-
-    // Atomic approval: update topup status + increment user balance + record transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Conditional update: only update if status is pending
-      const updateResult = await tx.topupRequest.updateMany({
-        where: {
-          id: topupId,
-          status: 'pending',
-        },
-        data: {
-          status: 'approved',
-          processedAt: new Date(),
-          processedBy: adminUserId,
-        },
-      });
-
-      // If no rows updated, topup was not pending (race condition)
-      if (updateResult.count === 0) {
-        throw new Error('Topup request no longer pending');
+      if (existing) {
+        throw new Error(`Topup request is ${existing.status}, not pending`);
       }
+      throw new Error('Topup request not found');
+    }
 
-      // Increment user credit balance
-      const user = await tx.user.update({
-        where: { id: topup.userId },
-        data: {
-          creditBalance: { increment: bundle.credits },
-        },
-        select: { creditBalance: true },
-      });
+    // Increment user credit balance
+    const user = await tx.user.update({
+      where: { id: topup.userId },
+      data: {
+        creditBalance: { increment: bundle.credits },
+      },
+      select: { creditBalance: true },
+    });
 
-      // Record transaction
-      await tx.transaction.create({
-        data: {
-          userId: topup.userId,
-          type: 'topup_qris',
-          creditDelta: bundle.credits,
-          balanceAfter: user.creditBalance,
-          description: `QRIS topup approved: Rp ${topup.amountIdr.toLocaleString('id-ID')} → ${bundle.credits} credits`,
-          metadata: JSON.stringify({
-            topupId,
-            amountIdr: topup.amountIdr,
-            approvedBy: adminUserId,
-          }),
-        },
-      });
-
-      return {
-        newBalance: user.creditBalance,
-        creditAmount: bundle.credits,
-      };
+    // Record transaction
+    await tx.transaction.create({
+      data: {
+        userId: topup.userId,
+        type: 'topup_qris',
+        creditDelta: bundle.credits,
+        balanceAfter: user.creditBalance,
+        description: `QRIS topup approved: Rp ${topup.amountIdr.toLocaleString('id-ID')} → ${bundle.credits} credits`,
+        metadata: JSON.stringify({
+          topupId,
+          amountIdr: topup.amountIdr,
+          approvedBy: adminUserId,
+        }),
+      },
     });
 
     return {
-      success: true,
-      newBalance: result.newBalance,
-      creditAmount: result.creditAmount,
+      newBalance: user.creditBalance,
+      creditAmount: bundle.credits,
     };
-  } catch (error) {
-    console.error('Error approving topup:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
+  });
+
+  return {
+    success: true,
+    newBalance: result.newBalance,
+    creditAmount: result.creditAmount,
+  };
 }
 
 /**
@@ -393,52 +384,48 @@ export async function rejectTopup(
   reason: string
 ): Promise<{
   success: boolean;
-  message?: string;
 }> {
-  try {
-    // Check topup request exists and get current status
-    const topup = await prisma.topupRequest.findUnique({
-      where: { id: topupId },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
+  // Check topup request exists and get current status
+  const topup = await prisma.topupRequest.findUnique({
+    where: { id: topupId },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
 
-    if (!topup) {
-      return { success: false, message: 'Topup request not found' };
-    }
-
-    // Cannot reject if already approved
-    if (topup.status === 'approved') {
-      return {
-        success: false,
-        message: 'Cannot reject approved topup request',
-      };
-    }
-
-    // Idempotent: if already rejected, return success
-    if (topup.status === 'rejected') {
-      return { success: true, message: 'Already rejected' };
-    }
-
-    // Update status to rejected with reason
-    await prisma.topupRequest.update({
-      where: { id: topupId },
-      data: {
-        status: 'rejected',
-        processedAt: new Date(),
-        processedBy: adminUserId,
-        notes: reason,
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error rejecting topup:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Unknown error',
-    };
+  if (!topup) {
+    throw new Error('Topup request not found');
   }
+
+  // Cannot reject if already approved
+  if (topup.status === 'approved') {
+    throw new Error('Cannot reject approved topup request');
+  }
+
+  // Idempotent: if already rejected, return success
+  if (topup.status === 'rejected') {
+    return { success: true };
+  }
+
+  // Update status to rejected with reason using updateMany
+  const updateResult = await prisma.topupRequest.updateMany({
+    where: {
+      id: topupId,
+      status: 'pending',
+    },
+    data: {
+      status: 'rejected',
+      approvedAt: new Date(),
+      approvedBy: adminUserId,
+      notes: reason,
+    },
+  });
+
+  // If count=0, throw error
+  if (updateResult.count === 0) {
+    throw new Error('Topup request is not pending');
+  }
+
+  return { success: true };
 }
