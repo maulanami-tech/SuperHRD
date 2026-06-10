@@ -1,19 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@/generated/prisma/client';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20'), 1), 100);
+  const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
+  const status = searchParams.get('status');
+
   try {
+    const whereClause: Prisma.TopupRequestWhereInput = { userId: session.user.id };
+    if (status && status !== 'all') {
+      whereClause.status = status as any;
+    }
+
     const requests = await prisma.topupRequest.findMany({
-      where: { userId: session.user.id },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: limit,
+      skip: offset,
       select: {
         id: true,
         amountIdr: true,
@@ -28,7 +40,17 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ requests });
+    const total = await prisma.topupRequest.count({ where: whereClause });
+
+    return NextResponse.json({
+      requests,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    });
   } catch (error) {
     console.error('Failed to get top-up requests:', error);
     return NextResponse.json(
