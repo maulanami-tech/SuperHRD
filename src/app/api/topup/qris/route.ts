@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { topupRequestSchema } from '@/lib/zod-schemas/credits';
 import { addDays } from 'date-fns';
 import { BUNDLES } from '@/lib/credits';
@@ -10,6 +11,13 @@ export async function POST(req: NextRequest) {
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Per-user topup rate limit: 5 requests per hour
+  const topupKey = `topup:user:${session.user.id}`;
+  const topupCheck = await checkRateLimit(topupKey, { windowMs: 60 * 60 * 1000, maxRequests: 5 });
+  if (!topupCheck.allowed) {
+    return NextResponse.json({ error: 'Too many topup requests' }, { status: 429 });
   }
 
   try {
