@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, addRateLimitHeaders } from "@/lib/rate-limit";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
   const uploadKey = `upload:ip:${ip}`;
   const uploadCheck = await checkRateLimit(uploadKey, { windowMs: 60 * 1000, maxRequests: 10 });
   if (!uploadCheck.allowed) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    const response = NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    addRateLimitHeaders(response.headers, uploadCheck.remaining, uploadCheck.resetMs);
+    return response;
   }
 
   // Parse formData early — need file content for idempotency hash

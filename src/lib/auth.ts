@@ -28,6 +28,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           maxRequests: 5,
         });
         if (!emailCheck.allowed) {
+          // Rate limit enforced server-side. Returning null causes NextAuth to
+          // return 401 (not 429) — this is intentional to prevent information
+          // leakage about rate-limit state or account enumeration.
           console.warn(`[AUTH] Rate limited (email): email=${email}`);
           return null;
         }
@@ -38,6 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           maxRequests: 20,
         });
         if (!ipCheck.allowed) {
+          // Same rationale as email rate limit — 401 masks rate-limit status.
           console.warn(`[AUTH] Rate limited (IP): ip=${ip}`);
           return null;
         }
