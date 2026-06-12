@@ -392,9 +392,16 @@ export async function rejectTopup(
       },
     });
 
-    // If count=0, throw error
+    // If no rows updated, check existing status and throw specific error
     if (updateResult.count === 0) {
-      throw new Error('Topup request is not pending');
+      const existing = await tx.topupRequest.findUnique({
+        where: { id: topupId },
+        select: { status: true },
+      });
+      if (existing) {
+        throw new Error(`Topup request is ${existing.status}, not pending`);
+      }
+      throw new Error('Topup request not found');
     }
 
     return { success: true };
