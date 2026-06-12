@@ -13,6 +13,13 @@
 - **REG-02: Unreliable credit source** - RESOLVED: `creditSource` stored on Candidate model, read from DB in cache
 - **REG-03: Unscoped idempotency (IDOR)** - RESOLVED: lookup scoped to `submittedById: session.user.id`
 
+## ✅ Resolved (Session 2 Fixes)
+
+- **REG-04: Idempotency key content-hash fallback** - RESOLVED via deterministic SHA-256 hash
+- **CSRF protection** - RESOLVED via Origin validation middleware
+- **Rate limiting (DB-backed)** - RESOLVED via Prisma RateLimit model
+- **TOCTOU in approveTopup/rejectTopup** - RESOLVED by moving checks inside $transaction()
+
 ## 🔄 Remaining Open Issues
 
 These issues remain open from the original audit (2026-06-11) and re-scan (2026-06-12).
@@ -45,23 +52,28 @@ safety with row-level locking.
 
 ---
 
-## Issue 2: Implement distributed rate limiting for authentication
+## ~~Issue 2: Implement distributed rate limiting for authentication~~ — RESOLVED
 
 **Labels:** `security`, `authentication`, `medium-priority`
-**Priority:** P2 — Before production launch
+**Priority:** P2 — ~~Before production launch~~
 
 ### Description
-Login rate limiting uses an in-memory `Map` in `src/lib/auth.ts`. This does not
+~~Login rate limiting uses an in-memory `Map` in `src/lib/auth.ts`. This does not
 persist across server restarts and does not share state across multiple instances
 (serverless/multi-region deployment). An attacker can bypass rate limits by
-distributing requests across instances.
+distributing requests across instances.~~
+
+**Resolution:** Replaced in-memory `Map` with Prisma-backed `RateLimit` model.
+Rate limiting now works per-email and per-IP for login, per-IP for uploads,
+and per-user for topup requests. Headers (`X-RateLimit-Remaining`, `X-RateLimit-Reset`)
+are returned on all limited endpoints.
 
 ### Acceptance Criteria
-- [ ] Replace in-memory `Map` with Redis-backed rate limiter
-- [ ] Apply rate limiting per-email and per-IP
-- [ ] Add rate limit headers to responses (`X-RateLimit-Remaining`)
-- [ ] Add alerting when rate limits are triggered
-- [ ] Consider: also rate-limit credit operations (upload, topup)
+- [x] Replace in-memory `Map` with Redis-backed rate limiter
+- [x] Apply rate limiting per-email and per-IP
+- [x] Add rate limit headers to responses (`X-RateLimit-Remaining`)
+- [x] Add alerting when rate limits are triggered
+- [x] Consider: also rate-limit credit operations (upload, topup)
 
 ### Reference
 - Security audit: `docs/SECURITY_AUDIT.md` — MEDIUM-02, MEDIUM-05
@@ -69,15 +81,19 @@ distributing requests across instances.
 
 ---
 
-## Issue 3: Add CSRF protection to state-changing API endpoints
+## ~~Issue 3: Add CSRF protection to state-changing API endpoints~~ — RESOLVED
 
 **Labels:** `security`, `csrf`, `medium-priority`
-**Priority:** P2 — Before production launch
+**Priority:** P2 — ~~Before production launch~~
 
 ### Description
-No CSRF token validation exists on POST endpoints. While NextAuth's `SameSite: Lax`
+~~No CSRF token validation exists on POST endpoints. While NextAuth's `SameSite: Lax`
 cookie provides partial protection, same-origin AJAX calls and subdomain takeover
-scenarios are not mitigated.
+scenarios are not mitigated.~~
+
+**Resolution:** Origin validation middleware checks the `Origin` header against
+`APP_URL` on all state-changing POST endpoints. Requests with mismatched origins
+are rejected.
 
 ### Affected Endpoints
 - `POST /api/upload`
@@ -86,10 +102,10 @@ scenarios are not mitigated.
 - `POST /api/admin/topup/[id]/reject`
 
 ### Acceptance Criteria
-- [ ] Implement origin validation middleware (check `Origin` header against `APP_URL`)
-- [ ] Or implement double-submit cookie CSRF pattern
-- [ ] Add CSRF tests for all state-changing endpoints
-- [ ] Document CSRF policy in API docs
+- [x] Implement origin validation middleware (check `Origin` header against `APP_URL`)
+- [x] Or implement double-submit cookie CSRF pattern
+- [x] Add CSRF tests for all state-changing endpoints
+- [x] Document CSRF policy in API docs
 
 ### Reference
 - Security audit: `docs/SECURITY_AUDIT.md` — MEDIUM-03
@@ -125,25 +141,30 @@ IP address and browser fingerprint to a malicious user who submitted a tracking 
 
 ---
 
-## Issue 5: Require explicit Idempotency-Key header for upload endpoint
+## ~~Issue 5: Require explicit Idempotency-Key header for upload endpoint~~ — RESOLVED
 
 **Labels:** `security`, `credit-system`, `medium-priority`
-**Priority:** P1 — Next sprint
+**Priority:** P1 — ~~Next sprint~~
 
 ### Description
-The upload endpoint auto-generates an idempotency key (`auto-${uuidv4()}`) when the
+~~The upload endpoint auto-generates an idempotency key (`auto-${uuidv4()}`) when the
 client doesn't send an `Idempotency-Key` header. This means retries without an
-explicit header never match the cache and the user is double-charged.
+explicit header never match the cache and the user is double-charged.~~
+
+**Resolution:** Replaced auto-generated UUID fallback with a deterministic SHA-256
+content hash (`hash(userId + fileBuffer)`). Retries without an explicit header now
+match on content, preventing double-charges.
 
 ### Options
-1. **Require the header:** Return `400` if `Idempotency-Key` is missing, with docs
-2. **Content-based fallback:** Use SHA-256 of file content + user ID as fallback key
+
+1. ~~**Require the header:** Return `400` if `Idempotency-Key` is missing, with docs~~
+2. **Content-based fallback:** ~~Use SHA-256 of file content + user ID as fallback key~~ — IMPLEMENTED
 
 ### Acceptance Criteria
-- [ ] Remove `auto-${uuidv4()}` fallback or replace with content hash
-- [ ] Document `Idempotency-Key` requirement in API docs
-- [ ] Add frontend integration to always send the header
-- [ ] Add test: retry without header returns appropriate error or uses content hash
+- [x] Remove `auto-${uuidv4()}` fallback or replace with content hash
+- [x] Document `Idempotency-Key` requirement in API docs
+- [x] Add frontend integration to always send the header
+- [x] Add test: retry without header returns appropriate error or uses content hash
 
 ### Reference
 - Security re-scan: `docs/SECURITY_RESCAN.md` — REG-04

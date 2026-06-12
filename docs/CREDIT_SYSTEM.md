@@ -75,6 +75,21 @@ import { toZonedTime } from 'date-fns-tz';
 const wibDate = toZonedTime(new Date(), 'Asia/Jakarta');
 ```
 
+### Rate Limiting
+
+All endpoints are protected by database-backed rate limiting:
+
+| Endpoint | Window | Limit | Key |
+| --- | --- | --- | --- |
+| Login (per email) | 15 min | 5 attempts | `login:email:{email}` |
+| Login (per IP) | 15 min | 20 attempts | `login:ip:{ip}` |
+| Upload (per IP) | 1 min | 10 requests | `upload:ip:{ip}` |
+| Topup (per user) | 1 hour | 5 requests | `topup:user:{userId}` |
+
+Rate limit headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+
+When rate limit is exceeded, API returns `429 Too Many Requests`.
+
 ## API Endpoints
 
 ### User APIs
