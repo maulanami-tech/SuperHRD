@@ -1,45 +1,26 @@
 # Security Issues — Status Update
 
-**Last Updated:** 2026-06-11
+**Last Updated:** 2026-06-12
 
 ## ✅ Resolved (P1 Fixes Applied)
 
 - **Issue 1: Upload endpoint idempotency** - RESOLVED via `idempotencyKey` field and cached response
 - **Architectural: JWT admin validation** - RESOLVED via real-time DB query on admin requests
 
----
+## ✅ Resolved (Re-Scan Regression Fixes)
 
-## 🔄 Remaining Issues
+- **REG-01: Hardcoded quota limit** - RESOLVED: replaced `10` with `DAILY_QUOTA_LIMIT` constant
+- **REG-02: Unreliable credit source** - RESOLVED: `creditSource` stored on Candidate model, read from DB in cache
+- **REG-03: Unscoped idempotency (IDOR)** - RESOLVED: lookup scoped to `submittedById: session.user.id`
 
-These issues were identified during the credit payment system security audit (2026-06-11).
-Fixes for 7 findings have been committed. The following require architectural decisions
-and should be filed as GitHub issues.
+## 🔄 Remaining Open Issues
 
----
-
-## Issue 1: Implement upload endpoint idempotency
-
-**Labels:** `security`, `high-priority`, `credit-system`
-**Priority:** P1 — Next sprint
-
-### Description
-The `POST /api/upload` endpoint lacks idempotency protection. If a client retries
-after a network timeout (credit already deducted but response lost), the user is
-double-charged.
-
-### Acceptance Criteria
-- [ ] Accept `Idempotency-Key` header (or generate client request ID)
-- [ ] Store idempotency key with the transaction record
-- [ ] Return cached response for duplicate requests within a time window (e.g., 24h)
-- [ ] Document idempotency contract in API docs
-
-### Reference
-- Security audit: `docs/SECURITY_AUDIT.md` — HIGH-02
-- CWE-362, OWASP A04: Insecure Design
+These issues remain open from the original audit (2026-06-11) and re-scan (2026-06-12).
+They require architectural decisions and should be filed as GitHub issues.
 
 ---
 
-## Issue 2: Migrate from SQLite to PostgreSQL for production
+## Issue 1: Migrate from SQLite to PostgreSQL for production
 
 **Labels:** `security`, `infrastructure`, `high-priority`
 **Priority:** P2 — Before production launch
@@ -64,7 +45,7 @@ safety with row-level locking.
 
 ---
 
-## Issue 3: Implement distributed rate limiting for authentication
+## Issue 2: Implement distributed rate limiting for authentication
 
 **Labels:** `security`, `authentication`, `medium-priority`
 **Priority:** P2 — Before production launch
@@ -88,7 +69,7 @@ distributing requests across instances.
 
 ---
 
-## Issue 4: Add CSRF protection to state-changing API endpoints
+## Issue 3: Add CSRF protection to state-changing API endpoints
 
 **Labels:** `security`, `csrf`, `medium-priority`
 **Priority:** P2 — Before production launch
@@ -116,29 +97,7 @@ scenarios are not mitigated.
 
 ---
 
-## Issue 5: Validate JWT isAdmin claim against database on admin requests
-
-**Labels:** `security`, `authorization`, `medium-priority`
-**Priority:** P1 — Next sprint
-
-### Description
-The `isAdmin` flag is embedded in the JWT at login time and never refreshed.
-If an admin revokes a user's admin status, the change does not take effect until
-the JWT expires. This creates a window for unauthorized admin access.
-
-### Acceptance Criteria
-- [ ] Add database lookup for `isAdmin` in all admin route handlers
-- [ ] Or add a middleware that validates `isAdmin` from DB on `/admin/*` and `/api/admin/*` routes
-- [ ] Consider: shorter JWT expiration + refresh token rotation
-- [ ] Add test: admin revocation takes effect immediately
-
-### Reference
-- Security audit: `docs/SECURITY_AUDIT.md` — MEDIUM-04
-- CWE-285, OWASP A07: Authentication Failures
-
----
-
-## Issue 6: Sanitize proofImageUrl to prevent admin tracking/SSRF
+## Issue 4: Sanitize proofImageUrl to prevent admin tracking/SSRF
 
 **Labels:** `security`, `low-priority`
 **Priority:** P3 — Backlog
@@ -147,6 +106,8 @@ the JWT expires. This creates a window for unauthorized admin access.
 The `proofImageUrl` field in topup requests accepts any URL. When admins view the
 topup list, the admin's browser loads the image, potentially revealing the admin's
 IP address and browser fingerprint to a malicious user who submitted a tracking URL.
+
+**Partial mitigation:** Admin UI renders as `<a>` link (not `<img>`) with `rel="noopener noreferrer"`, but the admin's browser still requests the URL on click.
 
 ### Options
 1. Proxy images through the application server (strip headers, cache)
@@ -161,3 +122,29 @@ IP address and browser fingerprint to a malicious user who submitted a tracking 
 ### Reference
 - Security audit: `docs/SECURITY_AUDIT.md` — MEDIUM-06
 - CWE-918, OWASP A10: SSRF
+
+---
+
+## Issue 5: Require explicit Idempotency-Key header for upload endpoint
+
+**Labels:** `security`, `credit-system`, `medium-priority`
+**Priority:** P1 — Next sprint
+
+### Description
+The upload endpoint auto-generates an idempotency key (`auto-${uuidv4()}`) when the
+client doesn't send an `Idempotency-Key` header. This means retries without an
+explicit header never match the cache and the user is double-charged.
+
+### Options
+1. **Require the header:** Return `400` if `Idempotency-Key` is missing, with docs
+2. **Content-based fallback:** Use SHA-256 of file content + user ID as fallback key
+
+### Acceptance Criteria
+- [ ] Remove `auto-${uuidv4()}` fallback or replace with content hash
+- [ ] Document `Idempotency-Key` requirement in API docs
+- [ ] Add frontend integration to always send the header
+- [ ] Add test: retry without header returns appropriate error or uses content hash
+
+### Reference
+- Security re-scan: `docs/SECURITY_RESCAN.md` — REG-04
+- CWE-362, OWASP A04: Insecure Design
