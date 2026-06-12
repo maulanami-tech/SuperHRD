@@ -38,7 +38,7 @@ function validateCsrfOrigin(req: NextRequest, pathname: string): boolean {
 
   // Skip CSRF check for bypass paths (server-to-server, auth endpoints)
   for (const bypass of CSRF_BYPASS_PATHS) {
-    if (pathname.startsWith(bypass)) {
+    if (pathname === bypass || pathname.startsWith(bypass + "/")) {
       return true;
     }
   }
