@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
 import fs from "fs/promises";
 import path from "path";
+import { getClientIpFromRequest } from "@/lib/ip-utils";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -17,8 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Per-IP upload rate limit: 10 requests per minute
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const ip = getClientIpFromRequest(req);
   const uploadKey = `upload:ip:${ip}`;
   const uploadCheck = await checkRateLimit(uploadKey, { windowMs: 60 * 1000, maxRequests: 10 });
   if (!uploadCheck.allowed) {

@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIpFromHeaders } from "@/lib/ip-utils";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -18,9 +19,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !password) return null;
 
-        // Extract IP for per-IP rate limiting
-        const forwardedFor = req?.headers?.get?.('x-forwarded-for');
-        const ip = forwardedFor?.split(',')[0]?.trim() || req?.headers?.get?.('x-real-ip') || 'unknown';
+        const ip = getClientIpFromHeaders(req?.headers as Headers || new Headers());
 
         // Per-email rate limit: 5 attempts per 15 minutes
         const emailCheck = await checkRateLimit(`login:email:${email}`, {
