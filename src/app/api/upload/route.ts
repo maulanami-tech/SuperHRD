@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
-import { canUserScreen, deductCredit } from "@/lib/credits";
+import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT } from "@/lib/credits";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
@@ -18,25 +18,29 @@ export async function POST(req: NextRequest) {
   // Generate or extract idempotency key
   const idempotencyKey = req.headers.get('idempotency-key') || `auto-${uuidv4()}`;
 
-  // Check for existing request with this idempotency key
-  const existingCandidate = await prisma.candidate.findUnique({
-    where: { idempotencyKey },
-    include: { screeningResult: true },
+  // Check for existing request with this idempotency key (scoped to current user)
+  const existingCandidate = await prisma.candidate.findFirst({
+    where: {
+      idempotencyKey,
+      submittedById: session.user.id,
+    },
   });
 
   if (existingCandidate) {
-    // Return cached response - determine credit source from user's current state
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { dailyQuotaUsed: true },
+      select: { dailyQuotaUsed: true, lastQuotaDate: true },
     });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const quotaUsed = user?.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
 
     return NextResponse.json({
       candidateId: existingCandidate.id,
       status: existingCandidate.status,
       cached: true,
-      creditUsed: user && user.dailyQuotaUsed > 0 ? 'quota' : 'paid',
-      remainingQuota: user ? Math.max(0, 10 - user.dailyQuotaUsed) : 0,
+      creditUsed: existingCandidate.creditSource || 'unknown',
+      remainingQuota: Math.max(0, DAILY_QUOTA_LIMIT - quotaUsed),
     });
   }
 
@@ -139,6 +143,7 @@ export async function POST(req: NextRequest) {
       status: "pending",
       n8nRunId,
       idempotencyKey,
+      creditSource: deductionResult.source,
       submittedBy: session.user.name ?? session.user.email ?? "Unknown",
       submittedById: session.user.id,
     },
