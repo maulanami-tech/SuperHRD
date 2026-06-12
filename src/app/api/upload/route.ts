@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       select: { dailyQuotaUsed: true, lastQuotaDate: true },
     });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getCurrentDateWIB();
     const quotaUsed = user?.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
 
     return NextResponse.json({

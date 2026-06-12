@@ -25,8 +25,12 @@ export const uploadSchema = z.object({
 
 export const fileSchema = z.object({
   type: z.string().refine(
-    (t) => t === "application/pdf",
-    { message: "Only PDF files are allowed" }
+    (t) => [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ].includes(t),
+    { message: "Only PDF, DOC, and DOCX files are allowed" }
   ),
   size: z.number().max(10 * 1024 * 1024, "File size must be under 10MB"),
 });
