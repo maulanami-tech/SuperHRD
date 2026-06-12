@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
-import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT } from "@/lib/credits";
+import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT, getCurrentDateWIB } from "@/lib/credits";
 import { v4 as uuidv4 } from "uuid";
+import { createHash } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 
@@ -15,8 +16,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Parse formData early — need file content for idempotency hash
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const name = (formData.get("name") as string) ?? "";
+  const email = (formData.get("email") as string | null) ?? undefined;
+  const posisi = (formData.get("posisi") as string) ?? "";
+  const kriteria = (formData.get("kriteria") as string) ?? "";
+  const prompt = (formData.get("prompt") as string) ?? "";
+
+  if (!file) {
+    return NextResponse.json({ error: "File is required" }, { status: 400 });
+  }
+
+  // Read file content for idempotency hash (first 1KB for speed)
+  const fileBytes = await file.arrayBuffer();
+  const fileBuffer = Buffer.from(fileBytes);
+  const contentHash = createHash('sha256')
+    .update(session.user.id)
+    .update(fileBuffer.subarray(0, 1024))
+    .update(getCurrentDateWIB())
+    .digest('hex');
+
   // Generate or extract idempotency key
-  const idempotencyKey = req.headers.get('idempotency-key') || `auto-${uuidv4()}`;
+  const idempotencyKey = req.headers.get('idempotency-key') || `content-${contentHash}`;
 
   // Check for existing request with this idempotency key (scoped to current user)
   const existingCandidate = await prisma.candidate.findFirst({
@@ -56,18 +79,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  const name = (formData.get("name") as string) ?? "";
-  const email = (formData.get("email") as string | null) ?? undefined;
-  const posisi = (formData.get("posisi") as string) ?? "";
-  const kriteria = (formData.get("kriteria") as string) ?? "";
-  const prompt = (formData.get("prompt") as string) ?? "";
-
-  if (!file) {
-    return NextResponse.json({ error: "File is required" }, { status: 400 });
-  }
-
   const candidateValidation = uploadSchema.safeParse({ name, email, posisi, kriteria, prompt });
   if (!candidateValidation.success) {
     return NextResponse.json(
@@ -83,9 +94,6 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-
-  const bytes = await file.arrayBuffer();
-  const fileBuffer = Buffer.from(bytes);
 
   const magicCheck = validateFileMagicBytes(fileBuffer, file.type);
   if (!magicCheck.valid) {
