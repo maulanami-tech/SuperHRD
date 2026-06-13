@@ -67,8 +67,9 @@ function validateCsrfOrigin(req: NextRequest, pathname: string): boolean {
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // --- Early bypass for static assets, auth routes, and server-to-server webhooks ---
+  // --- Early bypass for static assets, auth routes, landing page, and server-to-server webhooks ---
   if (
+    pathname === "/" ||
     pathname.startsWith("/api/auth") ||
     pathname === "/login" ||
     pathname === "/register" ||

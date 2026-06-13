@@ -186,15 +186,25 @@ export async function getUserBalance(userId: string): Promise<{
   creditBalance: number;
   dailyQuotaUsed: number;
   dailyQuotaRemaining: number;
+  totalPurchased: number;
 }> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      creditBalance: true,
-      dailyQuotaUsed: true,
-      lastQuotaDate: true,
-    },
-  });
+  const [user, purchaseAgg] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        creditBalance: true,
+        dailyQuotaUsed: true,
+        lastQuotaDate: true,
+      },
+    }),
+    prisma.transaction.aggregate({
+      where: {
+        userId,
+        type: { in: ["topup_qris", "topup_stripe"] },
+      },
+      _sum: { creditDelta: true },
+    }),
+  ]);
 
   if (!user) {
     throw new Error(`User not found: ${userId}`);
@@ -203,11 +213,13 @@ export async function getUserBalance(userId: string): Promise<{
   const today = getCurrentDateWIB();
   const dailyQuotaUsed = user.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
   const dailyQuotaRemaining = DAILY_QUOTA_LIMIT - dailyQuotaUsed;
+  const totalPurchased = purchaseAgg._sum.creditDelta ?? 0;
 
   return {
     creditBalance: user.creditBalance,
     dailyQuotaUsed,
     dailyQuotaRemaining,
+    totalPurchased,
   };
 }
 

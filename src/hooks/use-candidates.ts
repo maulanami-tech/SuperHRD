@@ -56,8 +56,10 @@ export function useCandidates({
 
   useEffect(() => {
     isFirstLoad.current = true;
-    setIsLoading(true);
-    fetchCandidates();
+    const timer = setTimeout(() => {
+      void fetchCandidates();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchCandidates]);
 
   useEffect(() => {

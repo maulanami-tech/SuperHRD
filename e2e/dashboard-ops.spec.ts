@@ -2,10 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard Operations - QA Blockers Verification", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.goto("/dashboard");
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
 
@@ -140,10 +137,7 @@ test.describe("Dashboard Operations - QA Blockers Verification", () => {
 
 test.describe("Candidate Detail Operations - QA Blockers Verification", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.goto("/dashboard");
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
 
@@ -271,10 +265,7 @@ test.describe("Candidate Detail Operations - QA Blockers Verification", () => {
 
 test.describe("Dashboard Operations - Delete Flow", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.goto("/dashboard");
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
 

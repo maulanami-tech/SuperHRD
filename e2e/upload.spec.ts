@@ -31,11 +31,6 @@ async function fillRequiredFields(page: import("@playwright/test").Page) {
 
 test.describe("Upload Flow", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
-    await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
     await page.goto("/upload");
   });
 
@@ -49,7 +44,7 @@ test.describe("Upload Flow", () => {
     await expect(page.locator("#kriteria")).toBeVisible();
     await expect(page.locator("#prompt")).toBeVisible();
     await expect(page.getByText("Drag & drop your CV here")).toBeVisible();
-    await expect(page.getByText("PDF only, max 10MB")).toBeVisible();
+    await expect(page.getByText(/PDF.*DOCX.*DOC.*max 10MB/i)).toBeVisible();
   });
 
   test("posisi is an Input, kriteria and prompt are Textareas", async ({
@@ -131,18 +126,19 @@ test.describe("Upload Flow", () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test("docx file is rejected with toast error", async ({ page }) => {
-    await page.setInputFiles(
-      'input[type="file"]',
-      path.join(tmpDir, "fake-docx.docx")
-    );
-    await expect(
-      page.getByText("Invalid file type. Only PDF files are accepted.")
-    ).toBeVisible({ timeout: 5000 });
+  test("file dropzone accepts PDF, DOCX, and DOC files", async ({ page }) => {
+    const fileInput = page.locator('input[type="file"]');
+    await expect(fileInput).toHaveAttribute("accept", /.*pdf.*docx.*doc.*/);
+  });
+
+  test("upload page shows supported formats", async ({ page }) => {
+    await expect(page.getByText(/PDF.*DOCX.*DOC/i)).toBeVisible();
   });
 });
 
 test.describe("Upload API — Unauthenticated", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("POST /api/upload returns 401 when unauthenticated", async ({
     request,
   }) => {

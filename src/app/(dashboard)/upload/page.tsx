@@ -79,7 +79,11 @@ export default function UploadPage() {
 
   return (
     <>
-      <Header title="Upload CV" description="Submit a candidate CV for AI screening" />
+      <Header
+        title="Upload CV"
+        description="Submit a candidate CV for AI screening"
+        breadcrumb={[{ label: "Dashboard", href: "/dashboard" }, { label: "Upload CV" }]}
+      />
 
       <main className="flex-1 p-4 md:p-6">
         <Card className="mx-auto max-w-2xl">
@@ -142,7 +146,7 @@ export default function UploadPage() {
                 </Label>
                 <Textarea
                   id="kriteria"
-                  placeholder="e.g. Pengalaman minimal 3 tahun di Python"
+                  placeholder="e.g. Minimum 3 years of Python experience"
                   rows={3}
                   {...register("kriteria")}
                 />
@@ -157,7 +161,7 @@ export default function UploadPage() {
                 </Label>
                 <Textarea
                   id="prompt"
-                  placeholder="e.g. Tolong evaluasi CV yang diupload"
+                  placeholder="e.g. Evaluate this CV against the criteria above"
                   rows={3}
                   {...register("prompt")}
                 />
