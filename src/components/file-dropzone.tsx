@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface FileDropzoneProps {
+  accept?: Record<string, string[]>;
+  description?: string;
   file: File | null;
+  invalidTypeMessage?: string;
+  label?: string;
+  maxSize?: number;
+  tooLargeMessage?: string;
   onFileChange: (file: File | null) => void;
   error?: string;
 }
@@ -29,7 +35,17 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
+export function FileDropzone({
+  accept = ACCEPT,
+  description = "PDF, DOCX, DOC — max 10MB",
+  file,
+  invalidTypeMessage = "Invalid file type. Only PDF, DOCX, and DOC files are accepted.",
+  label = "Drag & drop your CV here",
+  maxSize = MAX_SIZE,
+  onFileChange,
+  tooLargeMessage = "File is too large. Maximum size is 10MB.",
+  error,
+}: FileDropzoneProps) {
   const onDrop = useCallback(
     (accepted: File[]) => {
       if (accepted.length > 0) {
@@ -41,20 +57,18 @@ export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: ACCEPT,
-    maxSize: MAX_SIZE,
+    accept,
+    maxSize,
     maxFiles: 1,
     onDropRejected: (rejections) => {
       const err = rejections[0]?.errors[0];
       onFileChange(null);
       switch (err?.code) {
         case "file-invalid-type":
-          toast.error(
-            "Invalid file type. Only PDF, DOCX, and DOC files are accepted."
-          );
+          toast.error(invalidTypeMessage);
           break;
         case "file-too-large":
-          toast.error("File is too large. Maximum size is 10MB.");
+          toast.error(tooLargeMessage);
           break;
         default:
           toast.error("File was rejected. Please try another file.");
@@ -102,11 +116,9 @@ export function FileDropzone({ file, onFileChange, error }: FileDropzoneProps) {
         <Upload className="h-6 w-6 text-muted-foreground" />
       </div>
       <p className="mt-3 text-sm font-medium">
-        {isDragActive ? "Drop the file here" : "Drag & drop your CV here"}
+        {isDragActive ? "Drop the file here" : label}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        PDF, DOCX, DOC — max 10MB
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>
   );

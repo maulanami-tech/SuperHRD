@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Candidate } from "@/lib/types";
 
 interface UseCandidatesOptions {
+  batchId?: string;
   search?: string;
   status?: string;
   pollingInterval?: number;
@@ -17,6 +18,7 @@ interface UseCandidatesReturn {
 }
 
 export function useCandidates({
+  batchId = "",
   search = "",
   status = "",
   pollingInterval = 10000,
@@ -29,6 +31,7 @@ export function useCandidates({
   const fetchCandidates = useCallback(async () => {
     try {
       const params = new URLSearchParams();
+      if (batchId) params.set("batchId", batchId);
       if (search) params.set("search", search);
       if (status) params.set("status", status);
 
@@ -47,7 +50,7 @@ export function useCandidates({
         isFirstLoad.current = false;
       }
     }
-  }, [search, status]);
+  }, [batchId, search, status]);
 
   const fetchRef = useRef(fetchCandidates);
   useEffect(() => {

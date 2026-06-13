@@ -23,6 +23,12 @@ export const uploadSchema = z.object({
   prompt: z.string().min(1, "Prompt is required").max(5000, "Prompt is too long"),
 });
 
+export const batchUploadSchema = uploadSchema.pick({
+  posisi: true,
+  kriteria: true,
+  prompt: true,
+});
+
 export const fileSchema = z.object({
   type: z.string().refine(
     (t) => [
@@ -52,4 +58,5 @@ export const n8nCallbackSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
+export type BatchUploadInput = z.infer<typeof batchUploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;

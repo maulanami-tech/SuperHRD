@@ -20,6 +20,7 @@ model User {
   candidates     Candidate[]
   transactions   Transaction[]
   topupRequests  TopupRequest[]
+  uploadBatches  UploadBatch[]
 }
 
 model Candidate {
@@ -36,12 +37,34 @@ model Candidate {
   n8nRunId        String?         @unique
   idempotencyKey  String?         @unique
   creditSource    String?
+  batchId         String?
+  batch           UploadBatch?    @relation(fields: [batchId], references: [id])
   submittedBy     String
   submittedById   String
   submittedByUser User            @relation(fields: [submittedById], references: [id])
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   screeningResult ScreeningResult?
+
+  @@index([batchId])
+}
+
+model UploadBatch {
+  id             String      @id @default(cuid())
+  submittedById  String
+  submittedBy    User        @relation(fields: [submittedById], references: [id])
+  posisi         String
+  kriteria       String
+  prompt         String
+  totalFiles     Int
+  acceptedFiles  Int
+  rejectedFiles  Int
+  status         String      @default("processing")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  candidates     Candidate[]
+
+  @@index([submittedById, createdAt])
 }
 
 model ScreeningResult {

@@ -1,9 +1,12 @@
 interface SendToN8nParams {
+  batchId?: string;
+  candidateId: string;
   fileBuffer: Buffer;
   fileName: string;
   posisi: string;
   kriteria: string;
   prompt: string;
+  runId: string;
 }
 
 const SYSTEM_INSTRUCTION = `You are an AI CV screening assistant. Analyze the provided CV/resume against the evaluation criteria below.
@@ -26,11 +29,14 @@ function sanitizeField(input: string): string {
 }
 
 export async function sendToN8n({
+  batchId,
+  candidateId,
   fileBuffer,
   fileName,
   posisi,
   kriteria,
   prompt,
+  runId,
 }: SendToN8nParams) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
   if (!webhookUrl) {
@@ -52,9 +58,12 @@ export async function sendToN8n({
   const formData = new FormData();
   formData.append(
     "data",
-    new Blob([new Uint8Array(fileBuffer)], { type: "application/pdf" }),
+    new Blob([new Uint8Array(fileBuffer)], { type: getMimeType(fileName) }),
     fileName
   );
+  formData.append("runId", runId);
+  formData.append("candidateId", candidateId);
+  if (batchId) formData.append("batchId", batchId);
   formData.append("posisi", safePosisi);
   formData.append("kriteria", safeKriteria);
   formData.append("prompt", structuredPrompt);
@@ -71,4 +80,13 @@ export async function sendToN8n({
   }
 
   return response.json().catch(() => null);
+}
+
+function getMimeType(fileName: string): string {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (extension === "doc") return "application/msword";
+  if (extension === "docx") {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  return "application/pdf";
 }

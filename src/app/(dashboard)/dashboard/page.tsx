@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { BarChart3, CheckCircle2, Clock3, Search, Upload, Users } from "lucide-react";
 import { useCandidates } from "@/hooks/use-candidates";
 import { CandidatesTable } from "@/components/candidates-table";
@@ -51,6 +52,8 @@ function StatCard({
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const batchId = searchParams.get("batchId") ?? "";
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -76,6 +79,7 @@ export default function DashboardPage() {
   }, []);
 
   const { candidates, isLoading, error, refetch } = useCandidates({
+    batchId,
     search: debouncedSearch,
     status: status === "all" ? "" : status,
   });
@@ -140,7 +144,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle>Recent Candidates</CardTitle>
+              <div>
+                <CardTitle>
+                  {batchId ? "Batch Candidates" : "Recent Candidates"}
+                </CardTitle>
+                {batchId && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Showing candidates from the latest ZIP batch.
+                  </p>
+                )}
+              </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

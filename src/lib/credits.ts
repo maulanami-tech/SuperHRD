@@ -57,6 +57,35 @@ export async function canUserScreen(userId: string): Promise<{
   return { canScreen: false, reason: 'Insufficient quota and credits' };
 }
 
+export async function getAvailableScreeningCredits(userId: string): Promise<{
+  available: number;
+  paidCredits: number;
+  quotaRemaining: number;
+}> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      creditBalance: true,
+      dailyQuotaUsed: true,
+      lastQuotaDate: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error(`User not found: ${userId}`);
+  }
+
+  const today = getCurrentDateWIB();
+  const quotaUsed = user.lastQuotaDate === today ? user.dailyQuotaUsed : 0;
+  const quotaRemaining = Math.max(0, DAILY_QUOTA_LIMIT - quotaUsed);
+
+  return {
+    available: quotaRemaining + user.creditBalance,
+    paidCredits: user.creditBalance,
+    quotaRemaining,
+  };
+}
+
 /**
  * Deduct credit from user atomically using a database transaction.
  * All operations are wrapped in $transaction to prevent race conditions.
@@ -176,6 +205,64 @@ export async function deductCredit(
       newBalance: user.creditBalance,
       quotaRemaining: 0,
     };
+  });
+}
+
+export async function refundScreeningCredit(
+  userId: string,
+  candidateId: string,
+  source: 'quota' | 'paid',
+  description = 'Refund: screening service unavailable'
+): Promise<void> {
+  if (source === 'paid') {
+    await prisma.$transaction(async (tx) => {
+      const refundedUser = await tx.user.update({
+        where: { id: userId },
+        data: { creditBalance: { increment: 1 } },
+      });
+
+      await tx.transaction.create({
+        data: {
+          userId,
+          type: 'refund',
+          creditDelta: 1,
+          balanceAfter: refundedUser.creditBalance,
+          amountIdr: null,
+          description,
+          metadata: JSON.stringify({ candidateId, reason: 'n8n_failed' }),
+        },
+      });
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const restoreResult = await tx.user.updateMany({
+      where: {
+        id: userId,
+        dailyQuotaUsed: { gt: 0 },
+      },
+      data: { dailyQuotaUsed: { decrement: 1 } },
+    });
+
+    const restoredUser = await tx.user.findUnique({
+      where: { id: userId },
+      select: { creditBalance: true },
+    });
+
+    if (restoreResult.count > 0 && restoredUser) {
+      await tx.transaction.create({
+        data: {
+          userId,
+          type: 'refund',
+          creditDelta: 0,
+          balanceAfter: restoredUser.creditBalance,
+          amountIdr: null,
+          description: 'Quota restored: screening service unavailable',
+          metadata: JSON.stringify({ candidateId, reason: 'n8n_failed' }),
+        },
+      });
+    }
   });
 }
 

@@ -16,6 +16,7 @@ test.beforeAll(() => {
   fs.writeFileSync(path.join(tmpDir, "validation-test.pdf"), MINIMAL_PDF);
   fs.writeFileSync(path.join(tmpDir, "full-upload-test.pdf"), MINIMAL_PDF);
   fs.writeFileSync(path.join(tmpDir, "fake-docx.docx"), "not a real docx");
+  fs.writeFileSync(path.join(tmpDir, "batch-test.zip"), "not a real zip");
 });
 
 test.afterAll(() => {
@@ -134,6 +135,34 @@ test.describe("Upload Flow", () => {
   test("upload page shows supported formats", async ({ page }) => {
     await expect(page.getByText(/PDF.*DOCX.*DOC/i)).toBeVisible();
   });
+
+  test("batch ZIP mode renders shared screening fields and ZIP dropzone", async ({
+    page,
+  }) => {
+    await page.getByRole("tab", { name: /batch zip/i }).click();
+    await expect(page.getByText("Batch ZIP Screening")).toBeVisible();
+    await expect(page.locator("#batch-posisi")).toBeVisible();
+    await expect(page.locator("textarea#batch-kriteria")).toBeVisible();
+    await expect(page.locator("textarea#batch-prompt")).toBeVisible();
+    await expect(page.getByText("Drag & drop your ZIP here")).toBeVisible();
+    await expect(page.getByText(/ZIP.*max 50MB.*50 valid CVs/i)).toBeVisible();
+  });
+
+  test("batch ZIP submit button is enabled when fields and ZIP are provided", async ({
+    page,
+  }) => {
+    await page.getByRole("tab", { name: /batch zip/i }).click();
+    await page.fill("#batch-posisi", "Senior Backend Developer");
+    await page.fill("#batch-kriteria", "Pengalaman minimal 3 tahun di Python");
+    await page.fill("#batch-prompt", "Tolong evaluasi semua CV di ZIP");
+    await page.setInputFiles(
+      'input[type="file"]',
+      path.join(tmpDir, "batch-test.zip")
+    );
+    await expect(
+      page.getByRole("button", { name: /upload zip & screen/i })
+    ).toBeEnabled();
+  });
 });
 
 test.describe("Upload API — Unauthenticated", () => {
@@ -143,6 +172,15 @@ test.describe("Upload API — Unauthenticated", () => {
     request,
   }) => {
     const res = await request.post("/api/upload");
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("Unauthorized");
+  });
+
+  test("POST /api/upload/batch returns 401 when unauthenticated", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/upload/batch");
     expect(res.status()).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("Unauthorized");

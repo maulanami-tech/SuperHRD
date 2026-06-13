@@ -13,12 +13,14 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  const batchId = searchParams.get("batchId");
   const search = searchParams.get("search");
   const status = searchParams.get("status");
 
   const candidates = await prisma.candidate.findMany({
     where: {
       submittedById: session.user.id,
+      ...(batchId && { batchId }),
       ...(search && {
         OR: [
           { name: { contains: search } },
