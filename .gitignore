@@ -60,6 +60,3 @@ qoderwake-security-scanner-role/
 # qa and security reports
 qa-reports/
 
-# opencode internal
-.omo/
-.tmp-poc/
