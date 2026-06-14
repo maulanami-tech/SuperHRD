@@ -68,6 +68,12 @@ export async function sendToN8n({
   formData.append("kriteria", safeKriteria);
   formData.append("prompt", structuredPrompt);
 
+  const appUrl = process.env.APP_URL;
+  if (!appUrl) {
+    throw new Error("APP_URL is not configured");
+  }
+  formData.append("callbackUrl", `${appUrl}/api/n8n/callback`);
+
   const response = await fetch(webhookUrl, {
     method: "POST",
     body: formData,
