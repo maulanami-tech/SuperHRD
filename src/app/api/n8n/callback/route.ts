@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { n8nCallbackSchema } from "@/lib/validations";
 import { timingSafeEqual } from "@/lib/crypto-utils";
 import { isProcessingTimedOut } from "@/lib/candidate-status";
+import { refundScreeningCredit } from "@/lib/credits";
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-callback-secret");
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { runId, overallScore, summary, criteria, rawResponse } = validation.data;
+  const { runId, overallScore, summary, criteria, rawResponse, status, error: errorMsg } = validation.data;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -39,14 +40,26 @@ export async function POST(req: NextRequest) {
         return { success: true, alreadyProcessed: true };
       }
 
-      // Reject late callbacks for timed-out processing candidates
       if (isProcessingTimedOut(lockedCandidate)) {
         return { error: "Candidate processing has timed out", status: 409 };
       }
 
-      // Reject callbacks for explicitly failed candidates
       if (lockedCandidate.status === "failed") {
         return { error: "Candidate has already failed", status: 409 };
+      }
+
+      // Handle error callback from n8n
+      if (status === "error") {
+        await tx.candidate.update({
+          where: { id: lockedCandidate.id },
+          data: { status: "failed" },
+        });
+        return { success: true, failed: true, reason: errorMsg ?? "n8n processing error" };
+      }
+
+      // Validate required fields for success callback
+      if (overallScore === undefined || !summary || !criteria) {
+        return { error: "Missing required fields for success callback", status: 400 };
       }
 
       if (!lockedCandidate.screeningResult) {
@@ -72,6 +85,18 @@ export async function POST(req: NextRequest) {
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
+
+    // Refund credit if candidate failed
+    if ("failed" in result && result.failed) {
+      const candidate = await prisma.candidate.findUnique({
+        where: { n8nRunId: runId },
+        select: { submittedById: true, id: true, creditSource: true },
+      });
+      if (candidate?.creditSource) {
+        await refundScreeningCredit(candidate.submittedById, candidate.id, candidate.creditSource);
+      }
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Callback processing error:", error);
