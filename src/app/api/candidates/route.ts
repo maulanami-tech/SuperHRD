@@ -5,6 +5,7 @@ import {
   getEffectiveStatus,
   buildStatusFilter,
 } from "@/lib/candidate-status";
+import { expireTimedOutCandidatesForUser } from "@/lib/candidate-timeouts";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   const batchId = searchParams.get("batchId");
   const search = searchParams.get("search");
   const status = searchParams.get("status");
+
+  await expireTimedOutCandidatesForUser(session.user.id);
 
   const candidates = await prisma.candidate.findMany({
     where: {

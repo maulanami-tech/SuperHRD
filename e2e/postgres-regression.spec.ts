@@ -16,9 +16,15 @@ const testIds = {
   callbackSuccessCandidate: "candidate-callback-success",
   callbackPaidCandidate: "candidate-callback-paid",
   callbackQuotaCandidate: "candidate-callback-quota",
+  timeoutPaidCandidate: "candidate-timeout-paid",
+  timeoutQuotaCandidate: "candidate-timeout-quota",
+  timeoutLateCandidate: "candidate-timeout-late",
   callbackSuccessRun: "run-success-1",
   callbackPaidRun: "run-error-paid-1",
   callbackQuotaRun: "run-error-quota-1",
+  timeoutPaidRun: "run-timeout-paid-1",
+  timeoutQuotaRun: "run-timeout-quota-1",
+  timeoutLateRun: "run-timeout-late-1",
 };
 
 const MINIMAL_PDF =
@@ -75,6 +81,9 @@ async function cleanupRegressionData() {
         testIds.callbackSuccessCandidate,
         testIds.callbackPaidCandidate,
         testIds.callbackQuotaCandidate,
+        testIds.timeoutPaidCandidate,
+        testIds.timeoutQuotaCandidate,
+        testIds.timeoutLateCandidate,
       ]]
     );
 
@@ -87,6 +96,9 @@ async function cleanupRegressionData() {
         testIds.callbackSuccessCandidate,
         testIds.callbackPaidCandidate,
         testIds.callbackQuotaCandidate,
+        testIds.timeoutPaidCandidate,
+        testIds.timeoutQuotaCandidate,
+        testIds.timeoutLateCandidate,
       ]]
     );
 
@@ -94,6 +106,7 @@ async function cleanupRegressionData() {
       `
         DELETE FROM "Transaction"
         WHERE metadata LIKE '%candidate-callback-%'
+           OR metadata LIKE '%candidate-timeout-%'
       `
     );
   });
@@ -399,6 +412,315 @@ test.describe.serial("PostgreSQL callback and refund regression", () => {
         dailyQuotaUsed: 2,
         lastQuotaDate: today,
         refundDelta: 0,
+      });
+  });
+});
+
+test.describe.serial("PostgreSQL processing timeout refund regression", () => {
+  test.beforeAll(async () => {
+    await cleanupRegressionData();
+  });
+
+  test.afterAll(async () => {
+    await cleanupRegressionData();
+  });
+
+  test("candidate list expires paid-credit processing candidates and refunds once", async ({
+    request,
+  }) => {
+    const { admin } = await getUsers();
+
+    await withClient(async (client) => {
+      await client.query(
+        `
+          UPDATE "User"
+          SET "creditBalance" = 2, "dailyQuotaUsed" = 5, "lastQuotaDate" = $2
+          WHERE id = $1
+        `,
+        [admin.id, getCurrentDateWIB()]
+      );
+
+      await client.query(
+        `
+          INSERT INTO "Candidate" (
+            id, name, email, "fileName", "filePath", status, "n8nRunId",
+            "creditSource", "submittedBy", "submittedById", "createdAt", "updatedAt"
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, 'processing', $6, 'paid', $7, $8,
+            NOW() - INTERVAL '11 minutes', NOW() - INTERVAL '11 minutes'
+          )
+        `,
+        [
+          testIds.timeoutPaidCandidate,
+          "Timeout Paid",
+          "timeout-paid@example.com",
+          "timeout-paid.pdf",
+          "/uploads/timeout-paid.pdf",
+          testIds.timeoutPaidRun,
+          admin.name,
+          admin.id,
+        ]
+      );
+    });
+
+    const res = await request.get("/api/candidates?status=failed");
+    expect(res.status()).toBe(200);
+
+    await expect
+      .poll(async () =>
+        withClient(async (client) => {
+          const result = await client.query(
+            `
+              SELECT
+                c.status,
+                u."creditBalance",
+                (
+                  SELECT COUNT(*)
+                  FROM "Transaction" t
+                  WHERE t."userId" = u.id
+                    AND t.type = 'refund'
+                    AND t.metadata LIKE $2
+                    AND t.metadata LIKE '%processing_timeout%'
+                )::int AS "refundCount"
+              FROM "Candidate" c
+              JOIN "User" u ON u.id = c."submittedById"
+              WHERE c.id = $1
+            `,
+            [testIds.timeoutPaidCandidate, `%${testIds.timeoutPaidCandidate}%`]
+          );
+
+          const row = result.rows[0];
+          return {
+            status: row?.status ?? null,
+            creditBalance: row?.creditBalance ?? null,
+            refundCount: row?.refundCount ?? 0,
+          };
+        })
+      )
+      .toEqual({
+        status: "failed",
+        creditBalance: 3,
+        refundCount: 1,
+      });
+
+    const retryRes = await request.get("/api/candidates?status=failed");
+    expect(retryRes.status()).toBe(200);
+
+    await expect
+      .poll(async () =>
+        withClient(async (client) => {
+          const result = await client.query(
+            `
+              SELECT
+                u."creditBalance",
+                (
+                  SELECT COUNT(*)
+                  FROM "Transaction" t
+                  WHERE t."userId" = u.id
+                    AND t.type = 'refund'
+                    AND t.metadata LIKE $2
+                )::int AS "refundCount"
+              FROM "Candidate" c
+              JOIN "User" u ON u.id = c."submittedById"
+              WHERE c.id = $1
+            `,
+            [testIds.timeoutPaidCandidate, `%${testIds.timeoutPaidCandidate}%`]
+          );
+
+          const row = result.rows[0];
+          return {
+            creditBalance: row?.creditBalance ?? null,
+            refundCount: row?.refundCount ?? 0,
+          };
+        })
+      )
+      .toEqual({
+        creditBalance: 3,
+        refundCount: 1,
+      });
+  });
+
+  test("candidate detail expires quota processing candidates and restores quota", async ({
+    request,
+  }) => {
+    const { admin } = await getUsers();
+    const today = getCurrentDateWIB();
+
+    await withClient(async (client) => {
+      await client.query(
+        `
+          UPDATE "User"
+          SET "creditBalance" = 11, "dailyQuotaUsed" = 3, "lastQuotaDate" = $2
+          WHERE id = $1
+        `,
+        [admin.id, today]
+      );
+
+      await client.query(
+        `
+          INSERT INTO "Candidate" (
+            id, name, email, "fileName", "filePath", status, "n8nRunId",
+            "creditSource", "submittedBy", "submittedById", "createdAt", "updatedAt"
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, 'processing', $6, 'quota', $7, $8,
+            NOW() - INTERVAL '11 minutes', NOW() - INTERVAL '11 minutes'
+          )
+        `,
+        [
+          testIds.timeoutQuotaCandidate,
+          "Timeout Quota",
+          "timeout-quota@example.com",
+          "timeout-quota.pdf",
+          "/uploads/timeout-quota.pdf",
+          testIds.timeoutQuotaRun,
+          admin.name,
+          admin.id,
+        ]
+      );
+    });
+
+    const res = await request.get(`/api/candidates/${testIds.timeoutQuotaCandidate}`);
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "failed" });
+
+    await expect
+      .poll(async () =>
+        withClient(async (client) => {
+          const result = await client.query(
+            `
+              SELECT
+                c.status,
+                u."creditBalance",
+                u."dailyQuotaUsed",
+                u."lastQuotaDate",
+                (
+                  SELECT t."creditDelta"
+                  FROM "Transaction" t
+                  WHERE t."userId" = u.id
+                    AND t.type = 'refund'
+                    AND t.metadata LIKE $2
+                    AND t.metadata LIKE '%processing_timeout%'
+                  ORDER BY t."createdAt" DESC
+                  LIMIT 1
+                ) AS "refundDelta"
+              FROM "Candidate" c
+              JOIN "User" u ON u.id = c."submittedById"
+              WHERE c.id = $1
+            `,
+            [testIds.timeoutQuotaCandidate, `%${testIds.timeoutQuotaCandidate}%`]
+          );
+
+          const row = result.rows[0];
+          return {
+            status: row?.status ?? null,
+            creditBalance: row?.creditBalance ?? null,
+            dailyQuotaUsed: row?.dailyQuotaUsed ?? null,
+            lastQuotaDate: row?.lastQuotaDate ?? null,
+            refundDelta: row?.refundDelta ?? null,
+          };
+        })
+      )
+      .toEqual({
+        status: "failed",
+        creditBalance: 11,
+        dailyQuotaUsed: 2,
+        lastQuotaDate: today,
+        refundDelta: 0,
+      });
+  });
+
+  test("late success callback after timeout fails candidate, refunds once, and stores no result", async ({
+    request,
+  }) => {
+    const { admin } = await getUsers();
+
+    await withClient(async (client) => {
+      await client.query(
+        `
+          UPDATE "User"
+          SET "creditBalance" = 7, "dailyQuotaUsed" = 5, "lastQuotaDate" = $2
+          WHERE id = $1
+        `,
+        [admin.id, getCurrentDateWIB()]
+      );
+
+      await client.query(
+        `
+          INSERT INTO "Candidate" (
+            id, name, email, "fileName", "filePath", status, "n8nRunId",
+            "creditSource", "submittedBy", "submittedById", "createdAt", "updatedAt"
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, 'processing', $6, 'paid', $7, $8,
+            NOW() - INTERVAL '11 minutes', NOW() - INTERVAL '11 minutes'
+          )
+        `,
+        [
+          testIds.timeoutLateCandidate,
+          "Timeout Late Callback",
+          "timeout-late@example.com",
+          "timeout-late.pdf",
+          "/uploads/timeout-late.pdf",
+          testIds.timeoutLateRun,
+          admin.name,
+          admin.id,
+        ]
+      );
+    });
+
+    const res = await request.post("/api/n8n/callback", {
+      headers: { "x-callback-secret": callbackSecret },
+      data: {
+        runId: testIds.timeoutLateRun,
+        status: "completed",
+        overallScore: 95,
+        summary: "Late success should be ignored",
+        criteria: [{ name: "Late", score: 95, notes: "Too late" }],
+      },
+    });
+
+    expect(res.status()).toBe(409);
+
+    await expect
+      .poll(async () =>
+        withClient(async (client) => {
+          const result = await client.query(
+            `
+              SELECT
+                c.status,
+                sr.id AS "screeningResultId",
+                u."creditBalance",
+                (
+                  SELECT COUNT(*)
+                  FROM "Transaction" t
+                  WHERE t."userId" = u.id
+                    AND t.type = 'refund'
+                    AND t.metadata LIKE $2
+                )::int AS "refundCount"
+              FROM "Candidate" c
+              JOIN "User" u ON u.id = c."submittedById"
+              LEFT JOIN "ScreeningResult" sr ON sr."candidateId" = c.id
+              WHERE c.id = $1
+            `,
+            [testIds.timeoutLateCandidate, `%${testIds.timeoutLateCandidate}%`]
+          );
+
+          const row = result.rows[0];
+          return {
+            status: row?.status ?? null,
+            screeningResultId: row?.screeningResultId ?? null,
+            creditBalance: row?.creditBalance ?? null,
+            refundCount: row?.refundCount ?? 0,
+          };
+        })
+      )
+      .toEqual({
+        status: "failed",
+        screeningResultId: null,
+        creditBalance: 8,
+        refundCount: 1,
       });
   });
 });

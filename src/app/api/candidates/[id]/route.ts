@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEffectiveStatus } from "@/lib/candidate-status";
+import { expireTimedOutCandidateById } from "@/lib/candidate-timeouts";
 import fs from "fs/promises";
 
 export async function GET(
@@ -14,6 +15,8 @@ export async function GET(
   }
 
   const { id } = await params;
+
+  await expireTimedOutCandidateById(id, session.user.id);
 
   const candidate = await prisma.candidate.findUnique({
     where: {

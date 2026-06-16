@@ -212,10 +212,20 @@ export async function refundScreeningCredit(
   userId: string,
   candidateId: string,
   source: 'quota' | 'paid',
-  description = 'Refund: screening service unavailable'
+  description = 'Refund: screening service unavailable',
+  reason = 'n8n_failed'
 ): Promise<void> {
   if (source === 'paid') {
     await prisma.$transaction(async (tx) => {
+      const existingRefund = await tx.transaction.findFirst({
+        where: {
+          userId,
+          type: 'refund',
+          metadata: { contains: `"candidateId":"${candidateId}"` },
+        },
+      });
+      if (existingRefund) return;
+
       const refundedUser = await tx.user.update({
         where: { id: userId },
         data: { creditBalance: { increment: 1 } },
@@ -229,7 +239,7 @@ export async function refundScreeningCredit(
           balanceAfter: refundedUser.creditBalance,
           amountIdr: null,
           description,
-          metadata: JSON.stringify({ candidateId, reason: 'n8n_failed' }),
+          metadata: JSON.stringify({ candidateId, reason }),
         },
       });
     });
@@ -237,6 +247,15 @@ export async function refundScreeningCredit(
   }
 
   await prisma.$transaction(async (tx) => {
+    const existingRefund = await tx.transaction.findFirst({
+      where: {
+        userId,
+        type: 'refund',
+        metadata: { contains: `"candidateId":"${candidateId}"` },
+      },
+    });
+    if (existingRefund) return;
+
     const restoreResult = await tx.user.updateMany({
       where: {
         id: userId,
@@ -258,8 +277,11 @@ export async function refundScreeningCredit(
           creditDelta: 0,
           balanceAfter: restoredUser.creditBalance,
           amountIdr: null,
-          description: 'Quota restored: screening service unavailable',
-          metadata: JSON.stringify({ candidateId, reason: 'n8n_failed' }),
+          description:
+            reason === 'processing_timeout'
+              ? 'Quota restored: screening timed out'
+              : 'Quota restored: screening service unavailable',
+          metadata: JSON.stringify({ candidateId, reason }),
         },
       });
     }

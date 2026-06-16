@@ -201,7 +201,7 @@ test.describe("Candidate Detail Operations - QA Blockers Verification", () => {
   test("QA4: Timeout hint is displayed for timed-out processing candidates", async ({
     page,
   }) => {
-    // This test requires a processing candidate that's >30 minutes old
+    // This test requires a processing candidate that's >10 minutes old
     // In real scenario, this would need test data setup
     // For now, we verify the UI elements exist when condition is met
 

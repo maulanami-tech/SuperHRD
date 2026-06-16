@@ -306,7 +306,7 @@ export default function CandidateDetailPage() {
                 Screening timed out
               </h3>
               <p className="mt-2 text-center text-sm text-muted-foreground">
-                The AI screening has been running for more than 30 minutes and
+                The AI screening has been running for more than 10 minutes and
                 is considered failed.
                 <br />
                 Please try uploading the CV again.

@@ -4,6 +4,7 @@ import { n8nCallbackSchema } from "@/lib/validations";
 import { timingSafeEqual } from "@/lib/crypto-utils";
 import { isProcessingTimedOut } from "@/lib/candidate-status";
 import { refundScreeningCredit } from "@/lib/credits";
+import { expireTimedOutCandidateByRunId } from "@/lib/candidate-timeouts";
 
 function isCreditSource(value: string): value is "quota" | "paid" {
   return value === "quota" || value === "paid";
@@ -30,6 +31,14 @@ export async function POST(req: NextRequest) {
   const { runId, overallScore, summary, criteria, rawResponse, status, error: errorMsg } = validation.data;
 
   try {
+    const expired = await expireTimedOutCandidateByRunId(runId);
+    if (expired) {
+      return NextResponse.json(
+        { error: "Candidate processing has timed out" },
+        { status: 409 }
+      );
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const lockedCandidate = await tx.candidate.findUnique({
         where: { n8nRunId: runId },
