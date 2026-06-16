@@ -76,7 +76,8 @@ export async function sendToN8n({
   if (!appUrl) {
     throw new Error("APP_URL is not configured");
   }
-  formData.append("callbackUrl", `${normalizeBaseUrl(appUrl)}/api/n8n/callback`);
+  const callbackBase = normalizeBaseUrl(process.env.APP_INTERNAL_URL ?? appUrl);
+  formData.append("callbackUrl", `${callbackBase}/api/n8n/callback`);
 
   const response = await fetch(webhookUrl, {
     method: "POST",
