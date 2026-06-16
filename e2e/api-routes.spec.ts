@@ -1,6 +1,9 @@
+import "dotenv/config";
 import { test, expect } from "@playwright/test";
 
 test.describe("API Routes - CLI Validation", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("GET /api/candidates returns 401 when unauthenticated", async ({
     request,
   }) => {
@@ -54,8 +57,13 @@ test.describe("API Routes - CLI Validation", () => {
   test("POST /api/n8n/callback returns 400 with valid secret but invalid payload", async ({
     request,
   }) => {
+    test.skip(
+      !process.env.N8N_CALLBACK_SECRET,
+      "N8N_CALLBACK_SECRET is not configured for this test environment"
+    );
+    const secret = process.env.N8N_CALLBACK_SECRET ?? "shared-secret-with-n8n";
     const res = await request.post("/api/n8n/callback", {
-      headers: { "x-callback-secret": "shared-secret-with-n8n" },
+      headers: { "x-callback-secret": secret },
       data: { runId: "", overallScore: "not-a-number" },
     });
     expect(res.status()).toBe(400);
@@ -66,8 +74,13 @@ test.describe("API Routes - CLI Validation", () => {
   test("POST /api/n8n/callback returns 404 for unknown runId", async ({
     request,
   }) => {
+    test.skip(
+      !process.env.N8N_CALLBACK_SECRET,
+      "N8N_CALLBACK_SECRET is not configured for this test environment"
+    );
+    const secret = process.env.N8N_CALLBACK_SECRET ?? "shared-secret-with-n8n";
     const res = await request.post("/api/n8n/callback", {
-      headers: { "x-callback-secret": "shared-secret-with-n8n" },
+      headers: { "x-callback-secret": secret },
       data: {
         runId: "non-existent-run-id",
         overallScore: 85,
@@ -87,10 +100,10 @@ test.describe("API Routes - CLI Validation", () => {
     expect(res.status()).toBe(200);
   });
 
-  test("GET / returns redirect (302/303) when unauthenticated", async ({
+  test("GET / returns landing page when unauthenticated", async ({
     request,
   }) => {
     const res = await request.get("/", { maxRedirects: 0 });
-    expect([302, 303, 307, 308]).toContain(res.status());
+    expect(res.status()).toBe(200);
   });
 });

@@ -5,7 +5,7 @@ import { checkRateLimit, addRateLimitHeaders } from "@/lib/rate-limit";
 import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
-import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT, getCurrentDateWIB } from "@/lib/credits";
+import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT, getCurrentDateWIB, refundScreeningCredit } from "@/lib/credits";
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
 import fs from "fs/promises";
@@ -171,11 +171,13 @@ export async function POST(req: NextRequest) {
   // Try n8n
   try {
     await sendToN8n({
+      candidateId: candidate.id,
       fileBuffer,
       fileName: file.name,
       posisi: candidateValidation.data.posisi,
       kriteria: candidateValidation.data.kriteria,
       prompt: candidateValidation.data.prompt,
+      runId: n8nRunId,
     });
 
     await prisma.candidate.update({
@@ -188,57 +190,7 @@ export async function POST(req: NextRequest) {
     // Clean up file on n8n failure
     await fs.unlink(filePath);
 
-    // Refund credit since n8n failed - use atomic transactions
-    if (deductionResult.source === 'paid') {
-      await prisma.$transaction(async (tx) => {
-        const refundedUser = await tx.user.update({
-          where: { id: session.user.id },
-          data: { creditBalance: { increment: 1 } },
-        });
-
-        await tx.transaction.create({
-          data: {
-            userId: session.user.id,
-            type: 'refund',
-            creditDelta: 1,
-            balanceAfter: refundedUser.creditBalance,
-            amountIdr: null,
-            description: 'Refund: screening service unavailable',
-            metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
-          },
-        });
-      });
-    } else {
-      // Was free quota - restore it atomically with floor check
-      await prisma.$transaction(async (tx) => {
-        const restoreResult = await tx.user.updateMany({
-          where: {
-            id: session.user.id,
-            dailyQuotaUsed: { gt: 0 },
-          },
-          data: { dailyQuotaUsed: { decrement: 1 } },
-        });
-
-        const restoredUser = await tx.user.findUnique({
-          where: { id: session.user.id },
-          select: { creditBalance: true },
-        });
-
-        if (restoreResult.count > 0 && restoredUser) {
-          await tx.transaction.create({
-            data: {
-              userId: session.user.id,
-              type: 'refund',
-              creditDelta: 0,
-              balanceAfter: restoredUser.creditBalance,
-              amountIdr: null,
-              description: 'Quota restored: screening service unavailable',
-              metadata: JSON.stringify({ candidateId: candidate.id, reason: 'n8n_failed' }),
-            },
-          });
-        }
-      });
-    }
+    await refundScreeningCredit(session.user.id, candidate.id, deductionResult.source);
 
     await prisma.candidate.update({
       where: { id: candidate.id },

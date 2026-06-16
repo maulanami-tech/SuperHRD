@@ -51,6 +51,7 @@ next-env.d.ts
 /src/generated/prisma
 test-results/
 playwright-report/
+.playwright/
 qoderwake-security-scanner-role/
 
 # qoder prompts, specs, and role templates
@@ -60,6 +61,5 @@ qoderwake-security-scanner-role/
 # qa and security reports
 qa-reports/
 
-# opencode internal
-.omo/
-.tmp-poc/
+# mcp config (contains secrets/tokens)
+.mcp.json

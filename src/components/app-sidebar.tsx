@@ -7,6 +7,9 @@ import {
   FileUp,
   LogOut,
   Users,
+  BarChart3,
+  Wallet,
+  History,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,6 +32,9 @@ import { logout } from "@/lib/actions";
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Upload CV", href: "/upload", icon: FileUp },
+  { title: "Analytics", href: "/analytics", icon: BarChart3 },
+  { title: "Top Up", href: "/topup", icon: Wallet },
+  { title: "History", href: "/credit-history", icon: History },
 ];
 
 export function AppSidebar() {
@@ -58,7 +64,7 @@ export function AppSidebar() {
                   pathname === item.href ||
                   pathname.startsWith(item.href + "/");
                 return (
-                  <SidebarMenuItem key={item.href}>
+                  <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}

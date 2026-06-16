@@ -1,11 +1,11 @@
-import { FileUp, Users } from "lucide-react";
+import { ClipboardList, FileUp, Inbox, ReceiptText, Users } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 interface EmptyStateProps {
   title?: string;
   description?: string;
-  icon?: "upload" | "users";
+  icon?: "upload" | "users" | "transactions" | "requests" | "inbox";
   action?: {
     label: string;
     href: string;
@@ -18,7 +18,14 @@ export function EmptyState({
   icon = "users",
   action = { label: "Upload CV", href: "/upload" },
 }: EmptyStateProps) {
-  const Icon = icon === "upload" ? FileUp : Users;
+  const icons = {
+    upload: FileUp,
+    users: Users,
+    transactions: ReceiptText,
+    requests: ClipboardList,
+    inbox: Inbox,
+  };
+  const Icon = icons[icon];
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">

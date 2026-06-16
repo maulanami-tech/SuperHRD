@@ -21,6 +21,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScreeningResults } from "@/components/screening-results";
 import { CandidateDetailSkeleton } from "@/components/loading-skeleton";
+import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -52,8 +53,6 @@ export default function CandidateDetailPage() {
 
   const fetchCandidate = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
       const res = await fetch(`/api/candidates/${id}`);
       if (res.status === 404) {
         setError("Candidate not found");
@@ -63,6 +62,7 @@ export default function CandidateDetailPage() {
       if (!res.ok) throw new Error("Failed to load candidate");
       const data: Candidate = await res.json();
       setCandidate(data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -76,7 +76,10 @@ export default function CandidateDetailPage() {
   }, [fetchCandidate]);
 
   useEffect(() => {
-    fetchCandidate();
+    const timer = setTimeout(() => {
+      void fetchCandidate();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchCandidate]);
 
   useEffect(() => {
@@ -132,16 +135,14 @@ export default function CandidateDetailPage() {
   if (loading) {
     return (
       <>
-        <div className="flex h-14 items-center border-b px-4 md:px-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/dashboard")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        </div>
+        <Header
+          title="Candidate"
+          description="Loading candidate details"
+          breadcrumb={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Candidate" },
+          ]}
+        />
         <main className="flex-1 p-4 md:p-6">
           <CandidateDetailSkeleton />
         </main>
@@ -152,24 +153,28 @@ export default function CandidateDetailPage() {
   if (error || !candidate) {
     return (
       <>
-        <div className="flex h-14 items-center border-b px-4 md:px-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/dashboard")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        </div>
+        <Header
+          title="Candidate"
+          description="Candidate details"
+          breadcrumb={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Candidate" },
+          ]}
+        />
         <main className="flex flex-1 items-center justify-center p-4">
           <div className="text-center">
             <p className="text-muted-foreground">
               {error || "Candidate not found"}
             </p>
-            <Button variant="outline" className="mt-4" onClick={fetchCandidate}>
-              Try again
-            </Button>
+            <div className="mt-4 flex justify-center gap-2">
+              <Button variant="outline" onClick={() => router.push("/dashboard")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
+              </Button>
+              <Button variant="outline" onClick={fetchCandidate}>
+                Try again
+              </Button>
+            </div>
           </div>
         </main>
       </>
@@ -194,15 +199,15 @@ export default function CandidateDetailPage() {
 
   return (
     <>
-      <div className="flex h-14 items-center justify-between border-b px-4 md:px-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/dashboard")}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
+      <Header
+        title={candidate.name}
+        description={`Submitted by ${candidate.submittedBy}`}
+        breadcrumb={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Candidates", href: "/dashboard" },
+          { label: candidate.name },
+        ]}
+      >
         <Button
           variant="outline"
           size="sm"
@@ -213,9 +218,18 @@ export default function CandidateDetailPage() {
           <Trash2 className="mr-2 h-4 w-4" />
           Remove
         </Button>
-      </div>
+      </Header>
 
       <main className="flex-1 space-y-6 p-4 md:p-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push("/dashboard")}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

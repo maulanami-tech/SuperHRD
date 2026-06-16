@@ -1,0 +1,36 @@
+services:
+  superhrd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: superhrd:latest
+    container_name: superhrd
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: file:/app/data/prod.db
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${SUPERHRD_PORT:-3000}:3000"
+    volumes:
+      - superhrd_data:/app/data
+      - superhrd_uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  superhrd_data:
+  superhrd_uploads:

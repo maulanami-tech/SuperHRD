@@ -7,20 +7,30 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
+  timeout: 30_000,
   use: {
-    baseURL: "http://localhost:3002",
+    baseURL: "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    navigationTimeout: 15_000,
   },
   projects: [
     {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: ".playwright/auth.json",
+      },
+      dependencies: ["setup"],
     },
   ],
   webServer: {
-    command: "npx next dev -p 3002",
-    url: "http://localhost:3002",
+    command: "npx next dev -p 3000",
+    url: "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 120_000,
   },

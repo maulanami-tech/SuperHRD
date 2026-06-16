@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Auth Flow", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("login page renders with email and password fields", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator("#email")).toBeVisible();
@@ -10,29 +12,53 @@ test.describe("Auth Flow", () => {
 
   test("login page shows SuperHRD branding", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByText("SuperHRD")).toBeVisible();
+    await expect(page.getByText("SuperHRD", { exact: true })).toBeVisible();
+    await expect(page.getByText("Welcome back")).toBeVisible();
     await expect(
-      page.getByText("Sign in to access the CV screening dashboard")
+      page.getByText("Sign in to continue screening candidates with SuperHRD.")
     ).toBeVisible();
   });
 
+  test("login page has Indigo Purple gradient background", async ({ page }) => {
+    await page.goto("/login");
+    const gradientElements = page.locator('[class*="from-indigo"], [class*="via-purple"], [class*="to-violet"]');
+    await expect(gradientElements.first()).toBeVisible();
+  });
+
+  test("register page has Indigo Purple gradient background", async ({ page }) => {
+    await page.goto("/register");
+    const gradientElements = page.locator('[class*="from-indigo"], [class*="via-purple"], [class*="to-violet"]');
+    await expect(gradientElements.first()).toBeVisible();
+  });
+
   test("unauthenticated user is redirected to /login from /dashboard", async ({
-    page,
+    browser,
   }) => {
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
+    const page = await context.newPage();
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/.*\/login/);
+    await context.close();
   });
 
   test("unauthenticated user is redirected to /login from /upload", async ({
-    page,
+    browser,
   }) => {
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
+    const page = await context.newPage();
     await page.goto("/upload");
     await expect(page).toHaveURL(/.*\/login/);
+    await context.close();
   });
 
-  test("root / redirects to /login when unauthenticated", async ({ page }) => {
+  test("root / shows landing page when unauthenticated", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveURL(/.*\/login/);
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 
   test("login with invalid credentials shows error toast", async ({ page }) => {

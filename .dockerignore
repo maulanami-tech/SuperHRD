@@ -1,0 +1,15 @@
+.git
+.next
+.playwright
+.tmp-poc
+node_modules
+playwright-report
+qa-reports
+test-results
+uploads
+dev.db
+*.log
+.env
+.env.local
+.env.*.local
+tsconfig.tsbuildinfo

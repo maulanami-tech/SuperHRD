@@ -20,6 +20,7 @@ export interface Candidate {
   kriteria: string | null;
   prompt: string | null;
   n8nRunId: string | null;
+  batchId: string | null;
   submittedBy: string;
   submittedById: string;
   createdAt: string;
