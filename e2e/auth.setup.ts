@@ -1,42 +1,44 @@
-import path from "path";
 import { test as setup, expect } from "@playwright/test";
-import Database from "better-sqlite3";
 import { hashSync } from "bcryptjs";
+import { Client } from "pg";
 
 const authFile = ".playwright/auth.json";
 
-function databasePath() {
-  const url = process.env.DATABASE_URL ?? "file:./dev.db";
-  return path.resolve(url.replace(/^file:/, ""));
-}
-
 setup("authenticate", async ({ page }) => {
-  const db = new Database(databasePath());
   const now = new Date().toISOString();
   const passwordHash = hashSync("admin123", 10);
+  const connectionString = process.env.DATABASE_URL;
 
-  db.prepare(
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required");
+  }
+
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  await client.query(
     `
-    INSERT INTO User (
-      id, name, email, passwordHash, creditBalance, dailyQuotaUsed,
-      lastQuotaDate, isAdmin, createdAt
-    )
-    VALUES (
-      'test-admin-user', 'HRD Admin', 'hrd@superhrd.com', @passwordHash,
-      25, 0, '', 1, @now
-    )
-    ON CONFLICT(email) DO UPDATE SET
-      name = excluded.name,
-      passwordHash = excluded.passwordHash,
-      isAdmin = 1,
-      creditBalance = CASE
-        WHEN User.creditBalance < 25 THEN 25
-        ELSE User.creditBalance
-      END
-    `
-  ).run({ passwordHash, now });
-  db.prepare("DELETE FROM RateLimit WHERE key LIKE 'login:%'").run();
-  db.close();
+      INSERT INTO "User" (
+        id, name, email, "passwordHash", "creditBalance", "dailyQuotaUsed",
+        "lastQuotaDate", "isAdmin", "createdAt"
+      )
+      VALUES (
+        'test-admin-user', 'HRD Admin', 'hrd@superhrd.com', $1,
+        25, 0, '', true, $2
+      )
+      ON CONFLICT(email) DO UPDATE SET
+        name = excluded.name,
+        "passwordHash" = excluded."passwordHash",
+        "creditBalance" = 25,
+        "dailyQuotaUsed" = 0,
+        "lastQuotaDate" = '',
+        "isAdmin" = true
+    `,
+    [passwordHash, now]
+  );
+
+  await client.query(`DELETE FROM "RateLimit" WHERE key LIKE 'login:%'`);
+  await client.end();
 
   await page.goto("/login");
   await page.fill("#email", "hrd@superhrd.com");

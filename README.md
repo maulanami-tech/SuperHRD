@@ -11,7 +11,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Auth | NextAuth.js v5 (Credentials Provider) |
 | ORM | Prisma v7 |
-| Database | SQLite (via better-sqlite3 adapter) |
+| Database | PostgreSQL |
 | File Parsing | pdf-parse v2 (PDF) + mammoth (DOCX) |
 | Validation | Zod v4 |
 | Tables | TanStack React Table |
@@ -63,8 +63,13 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | SQLite database file path | `file:./dev.db` |
+| `POSTGRES_DB` | Local Docker PostgreSQL database name | `superhrd` |
+| `POSTGRES_USER` | Local Docker PostgreSQL username | `superhrd` |
+| `POSTGRES_PASSWORD` | Local Docker PostgreSQL password | `superhrd_dev_password` |
+| `POSTGRES_PORT` | Local Docker PostgreSQL host port | `5432` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://superhrd:superhrd_dev_password@localhost:5432/superhrd?schema=public` |
 | `NEXTAUTH_SECRET` | Secret for JWT signing (generate a random string) | `openssl rand -base64 32` |
+| `AUTH_TRUST_HOST` | Trust forwarded host values for Auth.js callbacks | `true` |
 | `NEXTAUTH_URL` | App base URL | `http://localhost:3000` |
 | `N8N_WEBHOOK_URL` | n8n webhook endpoint for CV screening | `https://your-n8n.com/webhook/cv-screening` |
 | `N8N_CALLBACK_SECRET` | Shared secret for n8n callback authentication | `your-shared-secret` |
@@ -107,6 +112,23 @@ prisma/
 | `npm run build` | Build for production |
 | `npm start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm run docker:up` | Build and run app + PostgreSQL with Docker Compose |
+| `npm run docker:down` | Stop Docker Compose services |
+
+## Docker Debug and Deploy
+
+For the default internal debug stack, start PostgreSQL and the app together:
+
+```bash
+docker compose up --build
+```
+
+The compose stack will:
+
+- start PostgreSQL with a named volume
+- wait for PostgreSQL health before starting the app
+- run `prisma migrate deploy` automatically before `npm run start`
+- persist uploaded files in a named uploads volume
 
 ## Architecture Flow
 

@@ -1,4 +1,27 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: superhrd-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-superhrd}
+      POSTGRES_USER: ${POSTGRES_USER:-superhrd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-superhrd_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - superhrd_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-superhrd} -d ${POSTGRES_DB:-superhrd}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   superhrd:
     build:
       context: .
@@ -6,18 +29,24 @@ services:
     image: superhrd:latest
     container_name: superhrd
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
-      DATABASE_URL: file:/app/data/prod.db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-superhrd}:${POSTGRES_PASSWORD:-superhrd_dev_password}@postgres:5432/${POSTGRES_DB:-superhrd}?schema=public
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-generate-a-random-secret-here}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:${SUPERHRD_PORT:-3000}}
+      APP_URL: ${APP_URL:-http://localhost:${SUPERHRD_PORT:-3000}}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://host.docker.internal:5678/webhook/pdf}
+      N8N_CALLBACK_SECRET: ${N8N_CALLBACK_SECRET:-generate-a-random-secret-here}
     ports:
       - "${SUPERHRD_PORT:-3000}:3000"
     volumes:
-      - superhrd_data:/app/data
       - superhrd_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -32,5 +61,5 @@ services:
       start_period: 30s
 
 volumes:
-  superhrd_data:
+  superhrd_postgres_data:
   superhrd_uploads:

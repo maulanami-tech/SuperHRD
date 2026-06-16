@@ -1,11 +1,16 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hashSync } from "bcryptjs";
 import { randomBytes } from "crypto";
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaClient } from "../src/generated/prisma/client";
 
 async function main() {
-  const { PrismaClient } = await import("../src/generated/prisma/client.js");
-  const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured");
+  }
+
+  const adapter = new PrismaPg({ connectionString });
   const prisma = new PrismaClient({ adapter });
 
   const defaultPassword = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(16).toString("hex");
