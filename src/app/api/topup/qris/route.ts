@@ -7,6 +7,17 @@ import { addDays } from 'date-fns';
 import { BUNDLES } from '@/lib/credits';
 import { createMidtransOrderId, createQrisCharge } from '@/lib/midtrans';
 
+const TOPUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function getTopupRateLimitMaxRequests() {
+  const configured = Number(process.env.TOPUP_RATE_LIMIT_MAX_REQUESTS);
+  if (Number.isInteger(configured) && configured > 0) {
+    return configured;
+  }
+
+  return process.env.NODE_ENV === 'production' ? 5 : 50;
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
 
@@ -14,9 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Per-user topup rate limit: 5 requests per hour
+  // Per-user topup rate limit. Production defaults to 5/hour; dev/SIT is higher for payment testing.
   const topupKey = `topup:user:${session.user.id}`;
-  const topupCheck = await checkRateLimit(topupKey, { windowMs: 60 * 60 * 1000, maxRequests: 5 });
+  const topupCheck = await checkRateLimit(topupKey, {
+    windowMs: TOPUP_RATE_LIMIT_WINDOW_MS,
+    maxRequests: getTopupRateLimitMaxRequests(),
+  });
   if (!topupCheck.allowed) {
     const response = NextResponse.json({ error: 'Too many topup requests' }, { status: 429 });
     addRateLimitHeaders(response.headers, topupCheck.remaining, topupCheck.resetMs);
