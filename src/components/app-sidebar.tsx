@@ -10,6 +10,7 @@ import {
   BarChart3,
   Wallet,
   History,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,7 +38,15 @@ const navItems = [
   { title: "History", href: "/credit-history", icon: History },
 ];
 
-export function AppSidebar() {
+const adminNavItems = [
+  { title: "Top-Up Requests", href: "/admin/topup-requests", icon: ShieldCheck },
+];
+
+interface AppSidebarProps {
+  isAdmin: boolean;
+}
+
+export function AppSidebar({ isAdmin }: AppSidebarProps) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
 
@@ -84,6 +93,38 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminNavItems.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={item.title}
+                      >
+                        <Link
+                          href={item.href}
+                          onClick={() => setOpenMobile(false)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

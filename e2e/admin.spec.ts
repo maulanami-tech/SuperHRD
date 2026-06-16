@@ -6,7 +6,9 @@ test.describe("Admin Topup Requests", () => {
   });
 
   test("admin topup requests page displays header", async ({ page }) => {
-    await expect(page.getByText("Top-Up Requests")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Top-Up Requests" })
+    ).toBeVisible();
   });
 
   test("admin page shows filter buttons", async ({ page }) => {

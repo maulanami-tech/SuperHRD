@@ -8,6 +8,7 @@ import {
   History,
   BarChart3,
   Wallet,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +20,17 @@ const navItems = [
   { title: "History", href: "/credit-history", icon: History },
 ];
 
-export function MobileNav() {
+const adminNavItems = [
+  { title: "Approve", href: "/admin/topup-requests", icon: ShieldCheck },
+];
+
+interface MobileNavProps {
+  isAdmin: boolean;
+}
+
+export function MobileNav({ isAdmin }: MobileNavProps) {
   const pathname = usePathname();
+  const items = isAdmin ? [...navItems, ...adminNavItems] : navItems;
 
   return (
     <nav
@@ -30,8 +40,11 @@ export function MobileNav() {
       )}
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid h-16 grid-cols-5 items-center px-1">
-        {navItems.map((item) => {
+      <div
+        className="grid h-16 items-center px-1"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
+        {items.map((item) => {
           const isActive =
             pathname === item.href ||
             pathname.startsWith(item.href + "/");
