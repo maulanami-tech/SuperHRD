@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, QrCode, RefreshCw } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/header";
 import {
@@ -44,6 +44,46 @@ const BUNDLES = [
   { amountIdr: 500000, credits: 1250, bonus: "+25%", label: "Enterprise" },
 ];
 
+function getPaymentStatusCopy(payment: QrisPayment | null) {
+  if (!payment) {
+    return {
+      title: "Waiting for payment",
+      description: "Create a QRIS payment to start.",
+      className: "border bg-background text-foreground",
+    };
+  }
+
+  if (payment.status === "approved") {
+    return {
+      title: "Payment successful",
+      description: "Credits have been added to your account.",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    };
+  }
+
+  if (payment.status === "expired") {
+    return {
+      title: "Payment expired",
+      description: "Create a new QRIS payment to continue.",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+
+  if (payment.status === "rejected") {
+    return {
+      title: "Payment failed",
+      description: "The payment was rejected by the provider.",
+      className: "border-red-200 bg-red-50 text-red-800",
+    };
+  }
+
+  return {
+    title: "Waiting for payment",
+    description: "Pay the QRIS code, then status will update automatically.",
+    className: "border-blue-200 bg-blue-50 text-blue-800",
+  };
+}
+
 export default function TopupPage() {
   const router = useRouter();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
@@ -52,6 +92,8 @@ export default function TopupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [payment, setPayment] = useState<QrisPayment | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+  const statusCopy = getPaymentStatusCopy(payment);
 
   const fetchBalance = useCallback(async () => {
     try {
@@ -142,7 +184,10 @@ export default function TopupPage() {
       if (current.status === "approved") {
         if (!silent) toast.success("Payment approved. Credits have been added.");
         await fetchBalance();
-        router.push("/dashboard");
+        setRedirecting(true);
+        window.setTimeout(() => {
+          router.push("/dashboard");
+        }, 1200);
       } else if (current.status === "expired") {
         toast.error("Payment expired. Please create a new QRIS payment.");
       } else if (current.status === "rejected") {
@@ -278,14 +323,27 @@ export default function TopupPage() {
                   </div>
 
                   {payment && (
-                    <div className="rounded-md border p-4 text-sm">
-                      <p className="font-medium">2. Payment status</p>
-                      <div className="mt-2 grid gap-1 text-muted-foreground">
+                    <div className={cn("rounded-md p-4 text-sm", statusCopy.className)}>
+                      <p className="font-medium">{statusCopy.title}</p>
+                      <p className="mt-1">{statusCopy.description}</p>
+                      <div className="mt-3 grid gap-1 text-muted-foreground">
                         <p>Order: {payment.orderId}</p>
                         <p>Status: {payment.status}</p>
                         <p>Provider: {payment.providerStatus ?? "pending"}</p>
                         <p>
                           Expires: {new Date(payment.expiresAt).toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {redirecting && (
+                    <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="font-medium">Payment successful</p>
+                        <p className="mt-1 text-emerald-700">
+                          Credits have been added. Redirecting to dashboard...
                         </p>
                       </div>
                     </div>
@@ -324,10 +382,12 @@ export default function TopupPage() {
                       >
                         {checkingStatus ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : redirecting ? (
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
                         ) : (
                           <RefreshCw className="mr-2 h-4 w-4" />
                         )}
-                        Check Status
+                        {redirecting ? "Payment Successful" : "Check Status"}
                       </Button>
                       {payment.qrCodeUrl && (
                         <Button variant="outline" asChild>
