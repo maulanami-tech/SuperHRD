@@ -40,6 +40,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });
   }
 
+  const fileValidation = fileSchema.safeParse({ type: file.type, size: file.size });
+  if (!fileValidation.success) {
+    return NextResponse.json(
+      { error: fileValidation.error.issues[0].message },
+      { status: 400 }
+    );
+  }
+
   // Read file content for idempotency hash (first 1KB for speed)
   const fileBytes = await file.arrayBuffer();
   const fileBuffer = Buffer.from(fileBytes);
@@ -94,14 +102,6 @@ export async function POST(req: NextRequest) {
   if (!candidateValidation.success) {
     return NextResponse.json(
       { error: candidateValidation.error.issues[0].message },
-      { status: 400 }
-    );
-  }
-
-  const fileValidation = fileSchema.safeParse({ type: file.type, size: file.size });
-  if (!fileValidation.success) {
-    return NextResponse.json(
-      { error: fileValidation.error.issues[0].message },
       { status: 400 }
     );
   }
