@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/header";
@@ -51,7 +51,7 @@ export default function TopupPage() {
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [payment, setPayment] = useState<QrisPayment | null>(null);
 
-  async function fetchBalance() {
+  const fetchBalance = useCallback(async () => {
     try {
       const res = await fetch("/api/credit/balance");
       if (!res.ok) throw new Error("Failed to load balance");
@@ -62,11 +62,11 @@ export default function TopupPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void Promise.resolve().then(fetchBalance);
-  }, []);
+  }, [fetchBalance]);
 
   async function handleSubmit() {
     if (!selectedBundle) {
@@ -101,16 +101,30 @@ export default function TopupPage() {
     }
   }
 
-  async function handleCheckStatus() {
+  const handleCheckStatus = useCallback(async (silent = false) => {
     if (!payment) return;
 
     setCheckingStatus(true);
     try {
+      const syncRes = await fetch(`/api/topup/${payment.topupRequestId}/sync`, {
+        method: "POST",
+      });
+      const syncData: {
+        error?: string;
+        status?: QrisPayment["status"] | string;
+      } = await syncRes.json();
+
+      if (!syncRes.ok) {
+        throw new Error(syncData.error || "Failed to sync payment status");
+      }
+
       const res = await fetch("/api/topup/requests?status=all&limit=20");
       if (!res.ok) throw new Error("Failed to load payment status");
 
       const data: { requests?: TopupRequest[] } = await res.json();
-      const current = data.requests?.find((request) => request.id === payment.topupRequestId);
+      const current = data.requests?.find(
+        (request) => request.id === payment.topupRequestId,
+      );
       if (!current) throw new Error("Payment request not found");
 
       setPayment((prev) =>
@@ -124,21 +138,35 @@ export default function TopupPage() {
       );
 
       if (current.status === "approved") {
-        toast.success("Payment approved. Credits have been added.");
+        if (!silent) toast.success("Payment approved. Credits have been added.");
         await fetchBalance();
       } else if (current.status === "expired") {
         toast.error("Payment expired. Please create a new QRIS payment.");
       } else if (current.status === "rejected") {
         toast.error("Payment was rejected by provider.");
       } else {
-        toast.info("Payment is still pending.");
+        if (!silent) toast.info("Payment is still pending.");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to check status");
+      if (!silent) {
+        toast.error(error instanceof Error ? error.message : "Failed to check status");
+      }
     } finally {
       setCheckingStatus(false);
     }
-  }
+  }, [fetchBalance, payment]);
+
+  useEffect(() => {
+    if (!payment || payment.status !== "pending") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void handleCheckStatus(true);
+    }, 10_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [handleCheckStatus, payment]);
 
   return (
     <>
@@ -288,7 +316,7 @@ export default function TopupPage() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
-                        onClick={handleCheckStatus}
+                        onClick={() => void handleCheckStatus()}
                         disabled={checkingStatus}
                       >
                         {checkingStatus ? (
