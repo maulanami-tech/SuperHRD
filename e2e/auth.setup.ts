@@ -1,42 +1,62 @@
-import path from "path";
 import { test as setup, expect } from "@playwright/test";
-import Database from "better-sqlite3";
 import { hashSync } from "bcryptjs";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client";
 
 const authFile = ".playwright/auth.json";
 
-function databasePath() {
-  const url = process.env.DATABASE_URL ?? "file:./dev.db";
-  return path.resolve(url.replace(/^file:/, ""));
-}
-
 setup("authenticate", async ({ page }) => {
-  const db = new Database(databasePath());
   const now = new Date().toISOString();
   const passwordHash = hashSync("admin123", 10);
+  const connectionString = process.env.DATABASE_URL;
 
-  db.prepare(
-    `
-    INSERT INTO User (
-      id, name, email, passwordHash, creditBalance, dailyQuotaUsed,
-      lastQuotaDate, isAdmin, createdAt
-    )
-    VALUES (
-      'test-admin-user', 'HRD Admin', 'hrd@superhrd.com', @passwordHash,
-      25, 0, '', 1, @now
-    )
-    ON CONFLICT(email) DO UPDATE SET
-      name = excluded.name,
-      passwordHash = excluded.passwordHash,
-      isAdmin = 1,
-      creditBalance = CASE
-        WHEN User.creditBalance < 25 THEN 25
-        ELSE User.creditBalance
-      END
-    `
-  ).run({ passwordHash, now });
-  db.prepare("DELETE FROM RateLimit WHERE key LIKE 'login:%'").run();
-  db.close();
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required");
+  }
+
+  const adapter = new PrismaPg({ connectionString });
+  const prisma = new PrismaClient({ adapter });
+
+  await prisma.user.upsert({
+    where: { email: "hrd@superhrd.com" },
+    update: {
+      name: "HRD Admin",
+      passwordHash,
+      creditBalance: 25,
+      dailyQuotaUsed: 0,
+      lastQuotaDate: "",
+      isAdmin: true,
+    },
+    create: {
+      id: "test-admin-user",
+      name: "HRD Admin",
+      email: "hrd@superhrd.com",
+      passwordHash,
+      creditBalance: 25,
+      dailyQuotaUsed: 0,
+      lastQuotaDate: "",
+      isAdmin: true,
+      createdAt: now,
+    },
+  });
+
+  await prisma.user.updateMany({
+    where: {
+      email: "hrd@superhrd.com",
+      creditBalance: { lt: 25 },
+    },
+    data: { creditBalance: 25 },
+  });
+
+  await prisma.rateLimit.deleteMany({
+    where: {
+      key: {
+        startsWith: "login:",
+      },
+    },
+  });
+
+  await prisma.$disconnect();
 
   await page.goto("/login");
   await page.fill("#email", "hrd@superhrd.com");

@@ -150,18 +150,18 @@ if (existing) {
 | **CVSS** | 7.5 — AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H |
 | **CWE** | CWE-362 (Race Condition), CWE-400 (Resource Exhaustion) |
 | **OWASP** | A08: Software and Data Integrity |
-| **File** | `prisma/schema.prisma:6-8` (datasource), `package.json` (better-sqlite3) |
-| **Status** | 📋 ISSUE FILED (architectural change) |
+| **File** | `prisma/schema.prisma:6-8` (datasource), `docker-compose.yml`, `Dockerfile` |
+| **Status** | RESOLVED (migrated to PostgreSQL) |
 
 **Description:**
-The system uses SQLite via `better-sqlite3` as the database. SQLite serializes all write operations with a single-writer lock. Under concurrent credit operations (multiple users uploading simultaneously, admin approving topups concurrently):
+The system previously used SQLite via `better-sqlite3`, which serialized all write operations behind a single-writer lock. That created avoidable contention under concurrent credit operations.
 
 - Write operations queue behind each other
 - Under load, `SQLITE_BUSY` errors cause transaction failures
 - The `updateMany` + `findUnique` pattern in `deductCredit` relies on sequential execution, which SQLite enforces — but at the cost of throughput
 - `$transaction()` calls in Prisma with SQLite use interactive transactions that hold the write lock for the entire duration
 
-**Impact:** Under production load, transaction failures, timeouts, and degraded user experience. Potential for inconsistent state if transactions are interrupted.
+**Current state:** The application now uses PostgreSQL for both local Docker and runtime deployment paths, removing the file-backed SQLite bottleneck from the active architecture.
 
 **Recommended Fix:**
 Migrate to PostgreSQL for production deployment:
