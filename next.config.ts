@@ -1,5 +1,20 @@
 import type { NextConfig } from "next";
 
+function getAllowedDevOrigins() {
+  const origins = new Set<string>(["localhost", "127.0.0.1"]);
+  const appUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL;
+
+  if (appUrl) {
+    try {
+      origins.add(new URL(appUrl).host);
+    } catch {
+      // Ignore invalid local env URLs in dev.
+    }
+  }
+
+  return Array.from(origins);
+}
+
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -13,6 +28,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: getAllowedDevOrigins(),
   async headers() {
     if (process.env.NODE_ENV !== "production") {
       return [];

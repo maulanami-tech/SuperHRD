@@ -28,6 +28,10 @@ function sanitizeField(input: string): string {
     .trim();
 }
 
+function normalizeBaseUrl(input: string): string {
+  return input.trim().replace(/\/+$/, "");
+}
+
 export async function sendToN8n({
   batchId,
   candidateId,
@@ -72,7 +76,7 @@ export async function sendToN8n({
   if (!appUrl) {
     throw new Error("APP_URL is not configured");
   }
-  formData.append("callbackUrl", `${appUrl}/api/n8n/callback`);
+  formData.append("callbackUrl", `${normalizeBaseUrl(appUrl)}/api/n8n/callback`);
 
   const response = await fetch(webhookUrl, {
     method: "POST",

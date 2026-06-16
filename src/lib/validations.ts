@@ -43,8 +43,8 @@ export const fileSchema = z.object({
 
 export const n8nCallbackSchema = z.object({
   runId: z.string().min(1),
-  candidateId: z.string().optional(),
-  batchId: z.string().optional(),
+  candidateId: z.string().nullable().optional(),
+  batchId: z.string().nullable().optional(),
   status: z.enum(["completed", "error"]).optional(),
   overallScore: z.number().min(0).max(100).optional(),
   summary: z.string().max(5000).optional(),

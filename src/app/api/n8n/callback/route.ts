@@ -5,6 +5,10 @@ import { timingSafeEqual } from "@/lib/crypto-utils";
 import { isProcessingTimedOut } from "@/lib/candidate-status";
 import { refundScreeningCredit } from "@/lib/credits";
 
+function isCreditSource(value: string): value is "quota" | "paid" {
+  return value === "quota" || value === "paid";
+}
+
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-callback-secret");
   const expectedSecret = process.env.N8N_CALLBACK_SECRET;
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
         where: { n8nRunId: runId },
         select: { submittedById: true, id: true, creditSource: true },
       });
-      if (candidate?.creditSource) {
+      if (candidate?.creditSource && isCreditSource(candidate.creditSource)) {
         await refundScreeningCredit(candidate.submittedById, candidate.id, candidate.creditSource);
       }
     }

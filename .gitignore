@@ -60,3 +60,6 @@ qoderwake-security-scanner-role/
 
 # qa and security reports
 qa-reports/
+
+# mcp config (contains secrets/tokens)
+.mcp.json
