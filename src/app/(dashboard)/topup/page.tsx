@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/header";
@@ -44,6 +45,7 @@ const BUNDLES = [
 ];
 
 export default function TopupPage() {
+  const router = useRouter();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedBundle, setSelectedBundle] = useState<number | null>(null);
@@ -140,6 +142,7 @@ export default function TopupPage() {
       if (current.status === "approved") {
         if (!silent) toast.success("Payment approved. Credits have been added.");
         await fetchBalance();
+        router.push("/dashboard");
       } else if (current.status === "expired") {
         toast.error("Payment expired. Please create a new QRIS payment.");
       } else if (current.status === "rejected") {
@@ -154,7 +157,7 @@ export default function TopupPage() {
     } finally {
       setCheckingStatus(false);
     }
-  }, [fetchBalance, payment]);
+  }, [fetchBalance, payment, router]);
 
   useEffect(() => {
     if (!payment || payment.status !== "pending") {
