@@ -442,11 +442,14 @@ export async function approveTopup(
         type: 'topup_qris',
         creditDelta: bundle.credits,
         balanceAfter: user.creditBalance,
+        amountIdr: topup.amountIdr,
         description: `QRIS topup approved: Rp ${topup.amountIdr.toLocaleString('id-ID')} → ${bundle.credits} credits`,
         metadata: JSON.stringify({
           topupId,
           amountIdr: topup.amountIdr,
           approvedBy: adminUserId,
+          paymentProvider: topup.paymentProvider,
+          providerOrderId: topup.providerOrderId,
         }),
       },
     });

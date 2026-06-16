@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Loader2, QrCode } from "lucide-react";
+import { ExternalLink, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/header";
 import {
@@ -12,13 +12,28 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface CreditBalance {
   creditBalance: number;
   dailyQuotaRemaining: number;
+}
+
+interface QrisPayment {
+  topupRequestId: string;
+  orderId: string;
+  status: "pending" | "approved" | "rejected" | "expired";
+  providerStatus: string | null;
+  qrCodeUrl: string | null;
+  qrString: string | null;
+  expiresAt: string;
+}
+
+interface TopupRequest {
+  id: string;
+  status: QrisPayment["status"];
+  providerStatus: string | null;
 }
 
 const BUNDLES = [
@@ -32,28 +47,30 @@ export default function TopupPage() {
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedBundle, setSelectedBundle] = useState<number | null>(null);
-  const [proofImage, setProofImage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [payment, setPayment] = useState<QrisPayment | null>(null);
+
+  async function fetchBalance() {
+    try {
+      const res = await fetch("/api/credit/balance");
+      if (!res.ok) throw new Error("Failed to load balance");
+      const data: CreditBalance = await res.json();
+      setBalance(data);
+    } catch {
+      toast.error("Failed to load balance");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchBalance() {
-      try {
-        const res = await fetch("/api/credit/balance");
-        if (!res.ok) throw new Error("Failed to load balance");
-        const data: CreditBalance = await res.json();
-        setBalance(data);
-      } catch {
-        toast.error("Failed to load balance");
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchBalance();
+    void Promise.resolve().then(fetchBalance);
   }, []);
 
   async function handleSubmit() {
-    if (!selectedBundle || !proofImage) {
-      toast.error("Please select a bundle and provide payment proof URL");
+    if (!selectedBundle) {
+      toast.error("Please select a bundle");
       return;
     }
 
@@ -65,24 +82,61 @@ export default function TopupPage() {
         body: JSON.stringify({
           amountIdr: selectedBundle,
           paymentMethod: "qris",
-          proofImageUrl: proofImage,
         }),
       });
 
-      const data = await res.json();
+      const data: QrisPayment & { error?: string } = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to submit top-up request");
+        throw new Error(data.error || "Failed to create QRIS payment");
       }
 
-      toast.success("Top-up request submitted. You will be notified once approved.");
-      setSelectedBundle(null);
-      setProofImage("");
+      setPayment(data);
+      toast.success("QRIS payment created. Credits will be added after payment succeeds.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to submit request"
+        error instanceof Error ? error.message : "Failed to create payment"
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCheckStatus() {
+    if (!payment) return;
+
+    setCheckingStatus(true);
+    try {
+      const res = await fetch("/api/topup/requests?status=all&limit=20");
+      if (!res.ok) throw new Error("Failed to load payment status");
+
+      const data: { requests?: TopupRequest[] } = await res.json();
+      const current = data.requests?.find((request) => request.id === payment.topupRequestId);
+      if (!current) throw new Error("Payment request not found");
+
+      setPayment((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: current.status,
+              providerStatus: current.providerStatus,
+            }
+          : prev
+      );
+
+      if (current.status === "approved") {
+        toast.success("Payment approved. Credits have been added.");
+        await fetchBalance();
+      } else if (current.status === "expired") {
+        toast.error("Payment expired. Please create a new QRIS payment.");
+      } else if (current.status === "rejected") {
+        toast.error("Payment was rejected by provider.");
+      } else {
+        toast.info("Payment is still pending.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to check status");
+    } finally {
+      setCheckingStatus(false);
     }
   }
 
@@ -121,7 +175,10 @@ export default function TopupPage() {
                       isSelected && "border-primary ring-2 ring-primary",
                       bundle.popular && !isSelected && "border-primary/40"
                     )}
-                    onClick={() => setSelectedBundle(bundle.amountIdr)}
+                    onClick={() => {
+                      setSelectedBundle(bundle.amountIdr);
+                      setPayment(null);
+                    }}
                   >
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between gap-3">
@@ -155,61 +212,106 @@ export default function TopupPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Payment Instructions</CardTitle>
+                <CardTitle>QRIS Payment</CardTitle>
                 <CardDescription>
-                  Select a bundle, complete payment, then submit proof URL.
+                  Select a bundle, generate a QRIS code, then pay from your wallet or mobile banking app.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6 lg:grid-cols-[240px_1fr]">
-                <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed bg-muted/40">
-                  <div className="text-center">
-                    <QrCode className="mx-auto h-14 w-14 text-primary" />
-                    <p className="mt-3 text-sm font-medium">QRIS Placeholder</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Replace with your QRIS image
-                    </p>
-                  </div>
+                <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+                  {payment?.qrCodeUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={payment.qrCodeUrl}
+                      alt="Midtrans QRIS payment code"
+                      className="h-full w-full object-contain p-3"
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <QrCode className="mx-auto h-14 w-14 text-primary" />
+                      <p className="mt-3 text-sm font-medium">QRIS Midtrans</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        QR code appears after you create a payment.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-4">
                   <div className="rounded-md border p-4">
-                    <p className="text-sm font-medium">
-                      1. Pay selected amount
-                    </p>
+                    <p className="text-sm font-medium">1. Payment amount</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {selectedBundle
-                        ? `Transfer Rp ${selectedBundle.toLocaleString("id-ID")} via QRIS.`
+                        ? `Rp ${selectedBundle.toLocaleString("id-ID")} via QRIS Midtrans.`
                         : "Choose a bundle above to see the payment amount."}
                     </p>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="proofImage">
-                      2. Payment proof screenshot URL
-                    </label>
-                    <Input
-                      id="proofImage"
-                      type="url"
-                      placeholder="https://example.com/proof.jpg"
-                      value={proofImage}
-                      onChange={(e) => setProofImage(e.target.value)}
-                    />
-                  </div>
+
+                  {payment && (
+                    <div className="rounded-md border p-4 text-sm">
+                      <p className="font-medium">2. Payment status</p>
+                      <div className="mt-2 grid gap-1 text-muted-foreground">
+                        <p>Order: {payment.orderId}</p>
+                        <p>Status: {payment.status}</p>
+                        <p>Provider: {payment.providerStatus ?? "pending"}</p>
+                        <p>
+                          Expires: {new Date(payment.expiresAt).toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {payment?.qrString && !payment.qrCodeUrl && (
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground break-all">
+                      {payment.qrString}
+                    </div>
+                  )}
+
                   <Button
                     onClick={handleSubmit}
-                    disabled={submitting || !proofImage || !selectedBundle}
+                    disabled={submitting || !selectedBundle || payment?.status === "pending"}
                     className="w-full sm:w-auto"
                   >
                     {submitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting...
+                        Creating QRIS...
                       </>
                     ) : (
                       <>
-                        <Check className="mr-2 h-4 w-4" />
-                        Submit Top-Up Request
+                        <QrCode className="mr-2 h-4 w-4" />
+                        Create QRIS Payment
                       </>
                     )}
                   </Button>
+
+                  {payment && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleCheckStatus}
+                        disabled={checkingStatus}
+                      >
+                        {checkingStatus ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                        )}
+                        Check Status
+                      </Button>
+                      {payment.qrCodeUrl && (
+                        <Button variant="outline" asChild>
+                          <a
+                            href={payment.qrCodeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open QR
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

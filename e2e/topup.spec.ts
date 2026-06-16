@@ -21,15 +21,15 @@ test.describe("Topup Flow", () => {
   });
 
   test("topup page shows QRIS payment method", async ({ page }) => {
-    await expect(page.getByText(/qris placeholder/i)).toBeVisible();
+    await expect(page.getByText(/qris midtrans/i)).toBeVisible();
   });
 
-  test("topup form has payment proof URL input", async ({ page }) => {
+  test("topup form has QRIS create button", async ({ page }) => {
     await page.getByText("Starter").click();
-    await expect(page.locator("#proofImage")).toBeVisible();
+    await expect(page.getByRole("button", { name: /create qris payment/i })).toBeVisible();
   });
 
-  test("topup page shows payment instructions", async ({ page }) => {
-    await expect(page.getByText(/payment instructions/i)).toBeVisible();
+  test("topup page shows QRIS payment panel", async ({ page }) => {
+    await expect(page.getByText(/qris payment/i)).toBeVisible();
   });
 });

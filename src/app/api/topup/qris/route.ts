@@ -5,6 +5,7 @@ import { checkRateLimit, addRateLimitHeaders } from '@/lib/rate-limit';
 import { topupRequestSchema } from '@/lib/zod-schemas/credits';
 import { addDays } from 'date-fns';
 import { BUNDLES } from '@/lib/credits';
+import { createMidtransOrderId, createQrisCharge } from '@/lib/midtrans';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { amountIdr, proofImageUrl } = validation.data;
+    const { amountIdr } = validation.data;
 
     // Calculate credits based on bundle
     const bundle = BUNDLES.find((b) => b.amountIdr === amountIdr);
@@ -56,25 +57,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create top-up request
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, email: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Create top-up request before calling Midtrans so the order can be traced.
     const topupRequest = await prisma.topupRequest.create({
       data: {
         userId: session.user.id,
         amountIdr,
         creditAmount: bundle.credits,
         paymentMethod: 'qris',
-        proofImageUrl: proofImageUrl || null,
+        paymentProvider: 'midtrans',
         status: 'pending',
         expiresAt: addDays(new Date(), 1), // 24 hours from now
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      topupRequestId: topupRequest.id,
-      status: 'pending',
-      message: 'Top-up request submitted. You will be notified once approved.',
-    });
+    const orderId = createMidtransOrderId(topupRequest.id);
+
+    try {
+      const charge = await createQrisCharge({
+        orderId,
+        grossAmount: amountIdr,
+        customer: {
+          firstName: user.name,
+          email: user.email,
+        },
+      });
+
+      const updatedTopup = await prisma.topupRequest.update({
+        where: { id: topupRequest.id },
+        data: {
+          providerOrderId: orderId,
+          providerTransactionId: charge.transactionId,
+          providerStatus: charge.providerStatus ?? 'pending',
+          qrCodeUrl: charge.qrCodeUrl,
+          qrString: charge.qrString,
+          providerPayload: JSON.stringify(charge.providerPayload),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        topupRequestId: updatedTopup.id,
+        orderId,
+        status: updatedTopup.status,
+        providerStatus: updatedTopup.providerStatus,
+        qrCodeUrl: updatedTopup.qrCodeUrl,
+        qrString: updatedTopup.qrString,
+        expiresAt: updatedTopup.expiresAt,
+        message: 'QRIS payment created. Credits will be released after payment succeeds.',
+      });
+    } catch (error) {
+      await prisma.topupRequest.update({
+        where: { id: topupRequest.id },
+        data: {
+          status: 'rejected',
+          notes: 'Failed to create Midtrans QRIS payment',
+          processedAt: new Date(),
+          providerOrderId: orderId,
+        },
+      });
+
+      throw error;
+    }
+
   } catch (error) {
     console.error('Failed to create top-up request:', error);
     return NextResponse.json(
