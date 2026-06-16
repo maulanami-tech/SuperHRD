@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { getUploadIdempotencyKey } from "../src/lib/upload-idempotency";
 
 const MINIMAL_PDF =
   "%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n162\n%%EOF";
@@ -21,6 +22,17 @@ test.beforeAll(() => {
 
 test.afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test.describe("Upload idempotency", () => {
+  test("normal UI uploads are not auto-deduplicated without an explicit key", () => {
+    expect(getUploadIdempotencyKey(new Headers())).toBeNull();
+    expect(
+      getUploadIdempotencyKey(
+        new Headers({ "idempotency-key": " retry-upload-1 " })
+      )
+    ).toBe("retry-upload-1");
+  });
 });
 
 async function fillRequiredFields(page: import("@playwright/test").Page) {

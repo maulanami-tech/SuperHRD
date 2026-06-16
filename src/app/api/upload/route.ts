@@ -6,8 +6,8 @@ import { uploadSchema, fileSchema } from "@/lib/validations";
 import { sendToN8n } from "@/lib/n8n-client";
 import { validateFileMagicBytes } from "@/lib/file-validator";
 import { canUserScreen, deductCredit, DAILY_QUOTA_LIMIT, getCurrentDateWIB, refundScreeningCredit } from "@/lib/credits";
+import { getUploadIdempotencyKey } from "@/lib/upload-idempotency";
 import { v4 as uuidv4 } from "uuid";
-import { createHash } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { getClientIpFromRequest } from "@/lib/ip-utils";
@@ -48,25 +48,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Read file content for idempotency hash (first 1KB for speed)
+  // Read file content only after rejecting oversized or unsupported uploads.
   const fileBytes = await file.arrayBuffer();
   const fileBuffer = Buffer.from(fileBytes);
-  const contentHash = createHash('sha256')
-    .update(session.user.id)
-    .update(fileBuffer.subarray(0, 1024))
-    .update(getCurrentDateWIB())
-    .digest('hex');
 
-  // Generate or extract idempotency key
-  const idempotencyKey = req.headers.get('idempotency-key') || `content-${contentHash}`;
+  // Only explicit client-provided keys are idempotent. Normal UI uploads should
+  // create a fresh candidate every time, even while another screening is running.
+  const idempotencyKey = getUploadIdempotencyKey(req.headers);
 
-  // Check for existing request with this idempotency key (scoped to current user)
-  const existingCandidate = await prisma.candidate.findFirst({
-    where: {
-      idempotencyKey,
-      submittedById: session.user.id,
-    },
-  });
+  const existingCandidate = idempotencyKey
+    ? await prisma.candidate.findFirst({
+        where: {
+          idempotencyKey,
+          submittedById: session.user.id,
+        },
+      })
+    : null;
 
   if (existingCandidate) {
     const user = await prisma.user.findUnique({
