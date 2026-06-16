@@ -69,6 +69,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
 | `POSTGRES_PORT` | Local Docker PostgreSQL host port | `5432` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://superhrd:superhrd_dev_password@localhost:5432/superhrd?schema=public` |
 | `NEXTAUTH_SECRET` | Secret for JWT signing (generate a random string) | `openssl rand -base64 32` |
+| `AUTH_TRUST_HOST` | Trust forwarded host values for Auth.js callbacks | `true` |
 | `NEXTAUTH_URL` | App base URL | `http://localhost:3000` |
 | `N8N_WEBHOOK_URL` | n8n webhook endpoint for CV screening | `https://your-n8n.com/webhook/cv-screening` |
 | `N8N_CALLBACK_SECRET` | Shared secret for n8n callback authentication | `your-shared-secret` |
