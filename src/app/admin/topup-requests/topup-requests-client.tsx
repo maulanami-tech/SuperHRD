@@ -26,6 +26,9 @@ interface TopupRequest {
   status: "pending" | "approved" | "rejected" | "expired";
   proofImageUrl: string | null;
   notes: string | null;
+  paymentProvider: string;
+  providerOrderId: string | null;
+  providerStatus: string | null;
   createdAt: string;
   user: {
     name: string;
@@ -186,7 +189,7 @@ export function TopupRequestsClient() {
                     <div>
                       <p className="text-muted-foreground">Method</p>
                       <p className="font-medium">
-                        {request.paymentMethod.toUpperCase()}
+                        {request.paymentMethod.toUpperCase()} / {request.paymentProvider}
                       </p>
                     </div>
                     <div>
@@ -205,6 +208,20 @@ export function TopupRequestsClient() {
                         {new Date(request.createdAt).toLocaleString("id-ID")}
                       </p>
                     </div>
+                    {request.providerOrderId && (
+                      <div className="col-span-2">
+                        <p className="text-muted-foreground">Provider order</p>
+                        <p className="break-all font-medium">
+                          {request.providerOrderId}
+                        </p>
+                      </div>
+                    )}
+                    {request.providerStatus && (
+                      <div className="col-span-2">
+                        <p className="text-muted-foreground">Provider status</p>
+                        <p className="font-medium">{request.providerStatus}</p>
+                      </div>
+                    )}
                   </div>
 
                   {request.proofImageUrl && (

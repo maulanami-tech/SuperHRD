@@ -17,7 +17,11 @@ const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 /**
  * Paths that bypass CSRF origin checks (server-to-server webhooks, auth flows).
  */
-const CSRF_BYPASS_PATHS = ["/api/auth", "/api/n8n/callback"];
+const CSRF_BYPASS_PATHS = [
+  "/api/auth",
+  "/api/n8n/callback",
+  "/api/payments/midtrans/notification",
+];
 
 function addSecurityHeaders(res: NextResponse): NextResponse {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
@@ -79,8 +83,11 @@ export default function proxy(req: NextRequest) {
     return addSecurityHeaders(NextResponse.next());
   }
 
-  // n8n callback: no session check, no CSRF check (server-to-server), but still gets security headers
-  if (pathname === "/api/n8n/callback") {
+  // Server-to-server callbacks: no session check, but route handlers verify their own secrets/signatures.
+  if (
+    pathname === "/api/n8n/callback" ||
+    pathname === "/api/payments/midtrans/notification"
+  ) {
     return addSecurityHeaders(NextResponse.next());
   }
 

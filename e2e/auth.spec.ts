@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+const E2E_EMAIL = process.env.SUPERHRD_E2E_EMAIL ?? "hrd@superhrd.com";
+const E2E_PASSWORD = process.env.SUPERHRD_E2E_PASSWORD ?? "superhrd-e2e-password";
+
 test.describe("Auth Flow", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -73,7 +76,7 @@ test.describe("Auth Flow", () => {
 
   test("login with empty email shows validation error", async ({ page }) => {
     await page.goto("/login");
-    await page.fill("#password", "admin123");
+    await page.fill("#password", E2E_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
     // react-hook-form + zod should show inline validation error
     await expect(page.locator("form")).toBeVisible();
@@ -84,8 +87,8 @@ test.describe("Auth Flow", () => {
     page,
   }) => {
     await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
+    await page.fill("#email", E2E_EMAIL);
+    await page.fill("#password", E2E_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
@@ -93,8 +96,8 @@ test.describe("Auth Flow", () => {
   test("logout clears session and redirects to /login", async ({ page }) => {
     // Login first
     await page.goto("/login");
-    await page.fill("#email", "hrd@superhrd.com");
-    await page.fill("#password", "admin123");
+    await page.fill("#email", E2E_EMAIL);
+    await page.fill("#password", E2E_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
 

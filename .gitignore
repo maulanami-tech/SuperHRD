@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+e2e/smoke-test.mjs
+e2e/*production*.mjs
+e2e/test-cdp.mjs
+e2e/test-cloudflare.mjs
 
 # next.js
 /.next/
@@ -53,6 +57,9 @@ test-results/
 playwright-report/
 .playwright/
 qoderwake-security-scanner-role/
+.kilo/
+.codex/
+AGENTS.md
 
 # qoder prompts, specs, and role templates
 .qoder/

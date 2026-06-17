@@ -115,22 +115,31 @@ enum TopupStatus {
 }
 
 model TopupRequest {
-  id             String        @id @default(cuid())
-  userId         String
-  user           User          @relation(fields: [userId], references: [id])
-  amountIdr      Int
-  creditAmount   Int
-  paymentMethod  PaymentMethod
-  status         TopupStatus   @default(pending)
-  proofImageUrl  String?
-  notes          String?
-  processedBy    String?
-  processedAt    DateTime?
-  expiresAt      DateTime      @default(now())
-  createdAt      DateTime      @default(now())
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id])
+  amountIdr             Int
+  creditAmount          Int
+  paymentMethod         PaymentMethod
+  status                TopupStatus   @default(pending)
+  proofImageUrl         String?
+  notes                 String?
+  processedBy           String?
+  processedAt           DateTime?
+  expiresAt             DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  paymentProvider       String        @default("manual")
+  providerOrderId       String?       @unique
+  providerTransactionId String?
+  providerStatus        String?
+  providerFraudStatus   String?
+  qrCodeUrl             String?
+  qrString              String?
+  providerPayload       String?
 
   @@index([userId, status])
   @@index([status, createdAt])
+  @@index([paymentProvider, providerStatus])
 }
 
 model RateLimit {

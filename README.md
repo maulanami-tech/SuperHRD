@@ -39,7 +39,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
    npx prisma migrate deploy
    ```
 
-4. **Seed the database** (creates the default admin user):
+4. **Seed the database** (creates the initial admin user):
    ```bash
    npx prisma db seed
    ```
@@ -49,15 +49,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) and log in.
-
-## Default Credentials
-
-| Email | Password |
-|-------|----------|
-| hrd@superhrd.com | admin123 |
-
-> Change the password after first login in production.
+6. Open [http://localhost:3000](http://localhost:3000) and log in with the admin credentials configured for your environment.
 
 ## Environment Variables
 
@@ -74,6 +66,12 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
 | `N8N_WEBHOOK_URL` | n8n webhook endpoint for CV screening | `https://your-n8n.com/webhook/cv-screening` |
 | `N8N_CALLBACK_SECRET` | Shared secret for n8n callback authentication | `your-shared-secret` |
 | `APP_URL` | Public URL of this app (used for callback URL) | `http://localhost:3000` |
+| `MIDTRANS_MERCHANT_ID` | Midtrans merchant ID | `Gxxxxxxxxx` |
+| `MIDTRANS_CLIENT_KEY` | Midtrans client key | `SB-Mid-client-...` |
+| `MIDTRANS_SERVER_KEY` | Midtrans server key used by server-side charge and webhook verification | `SB-Mid-server-...` |
+| `MIDTRANS_IS_PRODUCTION` | Use Midtrans production API when `true`; sandbox when `false` | `false` |
+| `MIDTRANS_NOTIFICATION_URL` | Optional public webhook override for Midtrans payment notifications | `https://your-app.com/api/payments/midtrans/notification` |
+| `TOPUP_EXPIRY_MINUTES` | Optional QRIS top-up expiry in minutes | `30` |
 
 ## Project Structure
 
@@ -86,6 +84,7 @@ src/
       candidates/           # GET - list candidates with screening results
       candidates/[id]/      # GET - single candidate detail
       n8n/callback/         # POST - n8n screening result callback
+      payments/midtrans/    # POST - Midtrans QRIS payment notification
     login/                  # Login page
     dashboard/              # Dashboard with candidate table
     upload/                 # CV upload page
@@ -114,6 +113,16 @@ prisma/
 | `npm run lint` | Run ESLint |
 | `npm run docker:up` | Build and run app + PostgreSQL with Docker Compose |
 | `npm run docker:down` | Stop Docker Compose services |
+
+## Midtrans QRIS Payments
+
+Top-up payments use Midtrans Core API QRIS. Users create a QRIS payment from the Top Up page; credits are added only after Midtrans sends a verified `settlement` notification to:
+
+```text
+https://your-app.com/api/payments/midtrans/notification
+```
+
+For local or SIT testing, use sandbox keys and keep `MIDTRANS_IS_PRODUCTION=false`. In production, set the production merchant keys and make sure the notification URL is reachable over public HTTPS. If the app is behind Cloudflare Tunnel, allow this webhook path to pass through without browser challenge.
 
 ## Docker Debug and Deploy
 

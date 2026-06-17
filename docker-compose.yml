@@ -40,6 +40,11 @@ services:
       APP_URL: ${APP_URL:-http://localhost:${SUPERHRD_PORT:-3000}}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://host.docker.internal:5678/webhook/pdf}
       N8N_CALLBACK_SECRET: ${N8N_CALLBACK_SECRET:-generate-a-random-secret-here}
+      MIDTRANS_MERCHANT_ID: ${MIDTRANS_MERCHANT_ID:-}
+      MIDTRANS_CLIENT_KEY: ${MIDTRANS_CLIENT_KEY:-}
+      MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-}
+      MIDTRANS_IS_PRODUCTION: ${MIDTRANS_IS_PRODUCTION:-false}
+      MIDTRANS_NOTIFICATION_URL: ${MIDTRANS_NOTIFICATION_URL:-}
     ports:
       - "${SUPERHRD_PORT:-3000}:3000"
     volumes:

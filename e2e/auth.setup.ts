@@ -3,10 +3,12 @@ import { hashSync } from "bcryptjs";
 import { Client } from "pg";
 
 const authFile = ".playwright/auth.json";
+const E2E_EMAIL = process.env.SUPERHRD_E2E_EMAIL ?? "hrd@superhrd.com";
+const E2E_PASSWORD = process.env.SUPERHRD_E2E_PASSWORD ?? "superhrd-e2e-password";
 
 setup("authenticate", async ({ page }) => {
   const now = new Date().toISOString();
-  const passwordHash = hashSync("admin123", 10);
+  const passwordHash = hashSync(E2E_PASSWORD, 10);
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
@@ -23,7 +25,7 @@ setup("authenticate", async ({ page }) => {
         "lastQuotaDate", "isAdmin", "createdAt"
       )
       VALUES (
-        'test-admin-user', 'HRD Admin', 'hrd@superhrd.com', $1,
+        'test-admin-user', 'HRD Admin', $3, $1,
         25, 0, '', true, $2
       )
       ON CONFLICT(email) DO UPDATE SET
@@ -34,15 +36,15 @@ setup("authenticate", async ({ page }) => {
         "lastQuotaDate" = '',
         "isAdmin" = true
     `,
-    [passwordHash, now]
+    [passwordHash, now, E2E_EMAIL]
   );
 
   await client.query(`DELETE FROM "RateLimit" WHERE key LIKE 'login:%'`);
   await client.end();
 
   await page.goto("/login");
-  await page.fill("#email", "hrd@superhrd.com");
-  await page.fill("#password", "admin123");
+  await page.fill("#email", E2E_EMAIL);
+  await page.fill("#password", E2E_PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   await page.context().storageState({ path: authFile });
