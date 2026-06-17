@@ -4,7 +4,7 @@
 
 - Next.js 16 (App Router)
 - TypeScript (strict)
-- Prisma v7 + SQLite
+- Prisma v7 + PostgreSQL
 - NextAuth.js v5
 - Tailwind CSS v4 + shadcn/ui
 - Zod v4
@@ -36,7 +36,6 @@ prisma/
   schema.prisma    # Database schema
 ```
 
-## Default Credentials
+## Credentials
 
-- Email: `hrd@superhrd.com`
-- Password: admin123
+Use environment-specific admin credentials. Do not commit production or shared passwords.

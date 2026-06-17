@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { TopupStatus } from '@/generated/prisma/client';
 
 export const WIB_TIMEZONE = 'Asia/Jakarta';
 export const DAILY_QUOTA_LIMIT = 5;
@@ -388,11 +389,6 @@ export async function approveTopup(
       };
     }
 
-    // Cannot approve if rejected
-    if (topup.status === 'rejected') {
-      throw new Error(`Cannot approve ${topup.status} topup request`);
-    }
-
     // Find matching bundle
     const bundle = BUNDLES.find((b) => b.amountIdr === topup.amountIdr);
     if (!bundle) {
@@ -401,27 +397,46 @@ export async function approveTopup(
       );
     }
 
-    // Conditional update: only update if status is pending
+    // A late Midtrans settlement can arrive after a request was already marked
+    // expired/rejected (e.g. delayed webhook). Since the user has actually paid,
+    // we reopen from those states. 'approved' is excluded above (idempotent guard),
+    // so the status set below still prevents double-crediting.
+    const reopenableStatuses: TopupStatus[] = ['pending', 'expired', 'rejected'];
+
+    if (!reopenableStatuses.includes(topup.status)) {
+      throw new Error(`Cannot approve ${topup.status} topup request`);
+    }
+
+    const isReopen = topup.status !== 'pending';
+
+    // Conditional update: only update if status is still a reopenable state.
+    // This keeps the approval atomic and race-free — 'approved' is never in the
+    // set, so concurrent approvers cannot double-credit.
     const updateResult = await tx.topupRequest.updateMany({
       where: {
         id: topupId,
-        status: 'pending',
+        status: { in: reopenableStatuses },
       },
       data: {
         status: 'approved',
         processedAt: new Date(),
         processedBy: adminUserId,
+        ...(isReopen
+          ? {
+              notes: `Reopened from ${topup.status} after verified payment settlement`,
+            }
+          : {}),
       },
     });
 
-    // If no rows updated, check existing status and throw error
+    // If no rows updated, the status changed under us — report it.
     if (updateResult.count === 0) {
       const existing = await tx.topupRequest.findUnique({
         where: { id: topupId },
         select: { status: true },
       });
       if (existing) {
-        throw new Error(`Topup request is ${existing.status}, not pending`);
+        throw new Error(`Topup request is ${existing.status}, cannot approve`);
       }
       throw new Error('Topup request not found');
     }
@@ -450,6 +465,7 @@ export async function approveTopup(
           approvedBy: adminUserId,
           paymentProvider: topup.paymentProvider,
           providerOrderId: topup.providerOrderId,
+          ...(isReopen ? { reopenedFrom: topup.status } : {}),
         }),
       },
     });

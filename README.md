@@ -39,7 +39,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
    npx prisma migrate deploy
    ```
 
-4. **Seed the database** (creates the default admin user):
+4. **Seed the database** (creates the initial admin user):
    ```bash
    npx prisma db seed
    ```
@@ -49,15 +49,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) and log in.
-
-## Default Credentials
-
-| Email | Password |
-|-------|----------|
-| hrd@superhrd.com | admin123 |
-
-> Change the password after first login in production.
+6. Open [http://localhost:3000](http://localhost:3000) and log in with the admin credentials configured for your environment.
 
 ## Environment Variables
 
@@ -79,6 +71,7 @@ AI-powered CV screening dashboard for internal HR teams. Upload candidate CVs, A
 | `MIDTRANS_SERVER_KEY` | Midtrans server key used by server-side charge and webhook verification | `SB-Mid-server-...` |
 | `MIDTRANS_IS_PRODUCTION` | Use Midtrans production API when `true`; sandbox when `false` | `false` |
 | `MIDTRANS_NOTIFICATION_URL` | Optional public webhook override for Midtrans payment notifications | `https://your-app.com/api/payments/midtrans/notification` |
+| `TOPUP_EXPIRY_MINUTES` | Optional QRIS top-up expiry in minutes | `30` |
 
 ## Project Structure
 

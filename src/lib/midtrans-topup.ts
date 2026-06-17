@@ -30,11 +30,19 @@ export async function processMidtransTopupStatus(notification: MidtransNotificat
 
   const topup = await prisma.topupRequest.findUnique({
     where: { providerOrderId: notification.order_id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, amountIdr: true },
   });
 
   if (!topup) {
     return { error: "Top-up request not found", httpStatus: 404 as const };
+  }
+
+  // Defense-in-depth: the notification's gross amount must match the amount we
+  // recorded when creating the charge. Mismatch indicates provider anomaly or
+  // tampering — refuse to process before touching balance.
+  const notifAmount = Number(notification.gross_amount);
+  if (!Number.isFinite(notifAmount) || notifAmount !== topup.amountIdr) {
+    return { error: "Gross amount mismatch", httpStatus: 400 as const };
   }
 
   await prisma.topupRequest.update({

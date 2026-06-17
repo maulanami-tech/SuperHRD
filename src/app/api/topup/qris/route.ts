@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkRateLimit, addRateLimitHeaders } from '@/lib/rate-limit';
 import { topupRequestSchema } from '@/lib/zod-schemas/credits';
-import { addDays } from 'date-fns';
+import { addMinutes } from 'date-fns';
 import { BUNDLES } from '@/lib/credits';
 import { createMidtransOrderId, createQrisCharge } from '@/lib/midtrans';
 
@@ -16,6 +16,18 @@ function getTopupRateLimitMaxRequests() {
   }
 
   return process.env.NODE_ENV === 'production' ? 5 : 50;
+}
+
+// QRIS Midtrans expires the payment code after ~15 minutes by default.
+// 30 minutes gives the expire/settlement webhook time to land before the
+// request is considered locally expired, and keeps the dedupe window tight.
+function getTopupExpiryMinutes(): number {
+  const configured = Number(process.env.TOPUP_EXPIRY_MINUTES);
+  if (Number.isInteger(configured) && configured > 0) {
+    return configured;
+  }
+
+  return 30;
 }
 
 export async function POST(req: NextRequest) {
@@ -89,7 +101,7 @@ export async function POST(req: NextRequest) {
         paymentMethod: 'qris',
         paymentProvider: 'midtrans',
         status: 'pending',
-        expiresAt: addDays(new Date(), 1), // 24 hours from now
+        expiresAt: addMinutes(new Date(), getTopupExpiryMinutes()),
       },
     });
 
