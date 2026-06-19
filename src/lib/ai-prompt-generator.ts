@@ -14,6 +14,9 @@ type ChatCompletionResponse = {
     message?: {
       content?: string;
     };
+    delta?: {
+      content?: string;
+    };
   }>;
 };
 
@@ -57,6 +60,49 @@ function parseGeneratedContent(content: string): GeneratedUploadPrompt {
   };
 }
 
+function extractContentFromChatCompletion(data: ChatCompletionResponse): string | null {
+  return data.choices?.[0]?.message?.content ?? data.choices?.[0]?.delta?.content ?? null;
+}
+
+function parseProviderResponseText(text: string): ChatCompletionResponse {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error("AI provider returned empty response");
+  }
+
+  if (!trimmed.startsWith("data:")) {
+    return JSON.parse(trimmed) as ChatCompletionResponse;
+  }
+
+  let streamedContent = "";
+  let lastMessageContent: string | null = null;
+
+  for (const line of trimmed.split(/\r?\n/)) {
+    const value = line.trim();
+    if (!value.startsWith("data:")) continue;
+
+    const payload = value.slice("data:".length).trim();
+    if (!payload || payload === "[DONE]") continue;
+
+    const chunk = JSON.parse(payload) as ChatCompletionResponse;
+    const messageContent = chunk.choices?.[0]?.message?.content;
+    const deltaContent = chunk.choices?.[0]?.delta?.content;
+    if (messageContent) {
+      lastMessageContent = messageContent;
+    }
+    if (deltaContent) {
+      streamedContent += deltaContent;
+    }
+  }
+
+  const content = streamedContent || lastMessageContent;
+  if (!content) {
+    throw new Error("AI provider returned empty streaming content");
+  }
+
+  return { choices: [{ message: { content } }] };
+}
+
 export function getAiProviderModel(): string {
   return requiredEnv("AI_PROVIDER_MODEL");
 }
@@ -75,6 +121,7 @@ export async function generateUploadPrompt(
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -107,8 +154,8 @@ export async function generateUploadPrompt(
       throw new Error(`AI provider failed: ${response.status}`);
     }
 
-    const data = (await response.json()) as ChatCompletionResponse;
-    const content = data.choices?.[0]?.message?.content;
+    const data = parseProviderResponseText(await response.text());
+    const content = extractContentFromChatCompletion(data);
     if (!content) {
       throw new Error("AI provider returned empty content");
     }
