@@ -209,6 +209,89 @@ export async function deductCredit(
   });
 }
 
+export async function deductPromptGenerationCredit(
+  userId: string,
+  params: { mode: "single" | "batch"; posisi: string; provider?: string; model?: string }
+): Promise<{ success: boolean; newBalance: number; reason?: string }> {
+  return prisma.$transaction(async (tx) => {
+    const updateResult = await tx.user.updateMany({
+      where: {
+        id: userId,
+        creditBalance: { gt: 0 },
+      },
+      data: { creditBalance: { decrement: 1 } },
+    });
+
+    if (updateResult.count === 0) {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { creditBalance: true },
+      });
+      return {
+        success: false,
+        newBalance: user?.creditBalance ?? 0,
+        reason: "Insufficient paid credits",
+      };
+    }
+
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { creditBalance: true },
+    });
+
+    if (!user) {
+      throw new Error(`User not found after prompt generation deduction: ${userId}`);
+    }
+
+    await tx.transaction.create({
+      data: {
+        userId,
+        type: "generate_prompt",
+        creditDelta: -1,
+        balanceAfter: user.creditBalance,
+        description: "AI generated screening criteria and prompt",
+        metadata: JSON.stringify({
+          mode: params.mode,
+          posisi: params.posisi,
+          provider: params.provider,
+          model: params.model,
+        }),
+      },
+    });
+
+    return { success: true, newBalance: user.creditBalance };
+  });
+}
+
+export async function refundPromptGenerationCredit(
+  userId: string,
+  params: { mode: "single" | "batch"; posisi: string; reason: string }
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: { creditBalance: { increment: 1 } },
+      select: { creditBalance: true },
+    });
+
+    await tx.transaction.create({
+      data: {
+        userId,
+        type: "refund",
+        creditDelta: 1,
+        balanceAfter: user.creditBalance,
+        amountIdr: null,
+        description: "Refund: AI prompt generation failed",
+        metadata: JSON.stringify({
+          mode: params.mode,
+          posisi: params.posisi,
+          reason: params.reason,
+        }),
+      },
+    });
+  });
+}
+
 export async function refundScreeningCredit(
   userId: string,
   candidateId: string,

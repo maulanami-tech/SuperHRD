@@ -24,6 +24,7 @@ const filters = [
   { label: "All", value: "all" },
   { label: "Top Up", value: "topup_qris" },
   { label: "Deduction", value: "deduct_screening" },
+  { label: "AI Generate", value: "generate_prompt" },
   { label: "Quota", value: "daily_quota" },
 ];
 
@@ -31,6 +32,7 @@ const typeClasses: Record<string, string> = {
   topup_qris: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
   topup_stripe: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
   deduct_screening: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
+  generate_prompt: "bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-600/20",
   daily_quota: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
   refund: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
   admin_adjustment: "bg-violet-50 text-violet-700 ring-1 ring-violet-600/20",
@@ -111,7 +113,7 @@ export default function CreditHistoryPage() {
               <EmptyState
                 icon="transactions"
                 title="No transactions yet"
-                description="Credit purchases, daily quota usage, and screening deductions will appear here."
+                description="Credit purchases, AI generation, daily quota usage, and screening deductions will appear here."
                 action={{ label: "Top Up Credits", href: "/topup" }}
               />
             ) : (

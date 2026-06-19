@@ -1,6 +1,9 @@
+import { config } from "dotenv";
 import { test as setup, expect } from "@playwright/test";
 import { hashSync } from "bcryptjs";
 import { Client } from "pg";
+
+config({ path: ".env.local" });
 
 const authFile = ".playwright/auth.json";
 const E2E_EMAIL = process.env.SUPERHRD_E2E_EMAIL ?? "hrd@superhrd.com";
