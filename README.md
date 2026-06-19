@@ -111,8 +111,17 @@ prisma/
 | `npm run build` | Build for production |
 | `npm start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm run test:e2e:dev` | Run the full local/dev Playwright suite with DB-backed auth setup |
+| `npm run test:e2e:prod` | Run the production-safe Playwright suite against `PLAYWRIGHT_BASE_URL` or `SUPERHRD_E2E_BASE_URL` |
+| `npm run test:e2e:prod:smoke` | Run the Cloudflare-aware production smoke test through Brave CDP |
+| `npm run test:e2e:prod:batch-zip` | Run the explicit production batch ZIP upload test |
 | `npm run docker:up` | Build and run app + PostgreSQL with Docker Compose |
 | `npm run docker:down` | Stop Docker Compose services |
+
+Production E2E uses `SUPERHRD_E2E_EMAIL` and `SUPERHRD_E2E_PASSWORD`. The
+Playwright production config excludes destructive regression/upload tests and
+does not write to the database during auth setup. The batch ZIP production test
+is intentionally separate because it creates upload data in production.
 
 ## Midtrans QRIS Payments
 
