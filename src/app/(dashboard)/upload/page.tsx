@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Archive, Loader2 } from "lucide-react";
+import { Archive, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   batchUploadSchema,
@@ -54,10 +54,15 @@ export default function UploadPage() {
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [posisiValue, setPosisiValue] = useState("");
+  const [batchPosisiValue, setBatchPosisiValue] = useState("");
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<UploadInput>({
     resolver: zodResolver(uploadSchema),
@@ -73,6 +78,7 @@ export default function UploadPage() {
   const {
     register: registerBatch,
     handleSubmit: handleBatchSubmit,
+    setValue: setBatchValue,
     formState: { errors: batchErrors },
   } = useForm<BatchUploadInput>({
     resolver: zodResolver(batchUploadSchema),
@@ -82,6 +88,57 @@ export default function UploadPage() {
       prompt: "",
     },
   });
+
+  async function generatePrompt(mode: "single" | "batch") {
+    const isBatch = mode === "batch";
+    const currentPosisi = isBatch ? batchPosisiValue : posisiValue;
+    if (!currentPosisi?.trim()) {
+      toast.error("Please enter a position before generating");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Generate criteria and prompt for this role? This will use 1 paid credit. You can edit the result before uploading.",
+    );
+    if (!confirmed) return;
+
+    if (isBatch) {
+      setBatchGenerating(true);
+    } else {
+      setGenerating(true);
+    }
+
+    try {
+      const res = await fetch("/api/upload/generate-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posisi: currentPosisi, mode }),
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to generate prompt");
+      }
+
+      if (isBatch) {
+        setBatchValue("kriteria", result.kriteria, { shouldValidate: true });
+        setBatchValue("prompt", result.prompt, { shouldValidate: true });
+      } else {
+        setValue("kriteria", result.kriteria, { shouldValidate: true });
+        setValue("prompt", result.prompt, { shouldValidate: true });
+      }
+
+      toast.success("Criteria and prompt generated. 1 paid credit used.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate prompt");
+    } finally {
+      if (isBatch) {
+        setBatchGenerating(false);
+      } else {
+        setGenerating(false);
+      }
+    }
+  }
 
   async function onSubmit(data: UploadInput) {
     if (!file) {
@@ -236,11 +293,42 @@ export default function UploadPage() {
                 <Input
                   id="posisi"
                   placeholder="e.g. Senior Backend Developer"
-                  {...register("posisi")}
+                  {...register("posisi", {
+                    onChange: (event) => setPosisiValue(event.target.value),
+                  })}
                 />
                 {errors.posisi && (
                   <p className="text-sm text-destructive">{errors.posisi.message}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Optional AI setup</p>
+                    <p className="text-sm text-muted-foreground">
+                      Optional - uses 1 paid credit. You can edit the result before uploading.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={generating || !posisiValue.trim()}
+                    onClick={() => generatePrompt("single")}
+                  >
+                    {generating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate with AI
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -325,13 +413,44 @@ export default function UploadPage() {
                       <Input
                         id="batch-posisi"
                         placeholder="e.g. Senior Backend Developer"
-                        {...registerBatch("posisi")}
+                        {...registerBatch("posisi", {
+                          onChange: (event) => setBatchPosisiValue(event.target.value),
+                        })}
                       />
                       {batchErrors.posisi && (
                         <p className="text-sm text-destructive">
                           {batchErrors.posisi.message}
                         </p>
                       )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Optional AI setup</p>
+                          <p className="text-sm text-muted-foreground">
+                            Optional - uses 1 paid credit. You can edit the result before uploading.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={batchGenerating || !batchPosisiValue.trim()}
+                          onClick={() => generatePrompt("batch")}
+                        >
+                          {batchGenerating ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              Generate with AI
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="space-y-2">

@@ -82,6 +82,7 @@ enum TransactionType {
   topup_qris
   topup_stripe
   deduct_screening
+  generate_prompt
   admin_adjustment
   daily_quota
   refund
