@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     ".codex/**",
     ".kilo/**",
     ".tmp-poc/**",
+    "playwright-report/**",
+    "test-results/**",
     "next-env.d.ts",
   ]),
 ]);
