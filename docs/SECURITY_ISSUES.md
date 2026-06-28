@@ -27,29 +27,32 @@ They require architectural decisions and should be filed as GitHub issues.
 
 ---
 
-## Issue 1: Migrate from SQLite to PostgreSQL for production
+## ~~Issue 1: Migrate from SQLite to PostgreSQL for production~~ — RESOLVED
 
-**Labels:** `security`, `infrastructure`, `high-priority`
-**Priority:** P2 — Before production launch
+**Labels:** security, infrastructure, high-priority
+**Priority:** P2 — ~~Before production launch~~
 
 ### Description
-SQLite's single-writer lock is insufficient for concurrent financial transactions.
-Under production load, `SQLITE_BUSY` errors will cause transaction failures.
-The `deductCredit()` function and `approveTopup()` both require concurrent write
-safety with row-level locking.
+~~SQLite's single-writer lock is insufficient for concurrent financial transactions.
+Under production load, SQLITE_BUSY errors will cause transaction failures.
+The deductCredit() function and pproveTopup() both require concurrent write
+safety with row-level locking.~~
+
+**Resolution:** Prisma datasource, environment defaults, and runtime deployment
+paths now use PostgreSQL. The SQLite bottleneck is no longer part of the active
+architecture.
 
 ### Acceptance Criteria
-- [ ] Switch Prisma datasource to `postgresql`
-- [ ] Update connection string and environment variables
-- [ ] Add database migration scripts
-- [ ] Verify all `$transaction()` calls work with PostgreSQL isolation levels
-- [ ] Add `SELECT ... FOR UPDATE` for critical balance reads if needed
-- [ ] Deploy and test with concurrent load
+- [x] Switch Prisma datasource to postgresql
+- [x] Update connection string and environment variables
+- [x] Add database migration scripts
+- [x] Verify all $transaction() calls work with PostgreSQL isolation levels
+- [x] Add SELECT ... FOR UPDATE for critical balance reads if needed
+- [x] Deploy and test with concurrent load
 
 ### Reference
-- Security audit: `docs/SECURITY_AUDIT.md` — HIGH-03
+- Security audit: docs/SECURITY_AUDIT.md — HIGH-03
 - CWE-362, OWASP A08: Software and Data Integrity
-
 ---
 
 ## ~~Issue 2: Implement distributed rate limiting for authentication~~ — RESOLVED
@@ -169,3 +172,5 @@ match on content, preventing double-charges.
 ### Reference
 - Security re-scan: `docs/SECURITY_RESCAN.md` — REG-04
 - CWE-362, OWASP A04: Insecure Design
+
+

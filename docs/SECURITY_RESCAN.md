@@ -49,7 +49,7 @@ Additionally, the `rejectTopup()` function retains a TOCTOU pattern from the ori
 - All database writes use `tx.user.update()` (line 94, 105, 140)
 - Transaction records created via `tx.transaction.create()` (line 119, 154)
 - Quota reset + deduction + credit check are sequential within a single transaction
-- Read-then-write pattern is safe within SQLite's serialized transaction model
+- Read-then-write pattern is safe within the current PostgreSQL-backed transaction flow
 
 **Status:** ✅ Correctly fixed. No residual race condition in the deduction flow.
 
@@ -394,7 +394,7 @@ These findings from the original audit remain open and have not been addressed i
 
 | ID | Severity | Finding | Status |
 |---|---|---|---|
-| HIGH-03 | 🟠 HIGH | SQLite concurrent write limitations | Open — architectural migration needed |
+| HIGH-03 | 🟢 RESOLVED | SQLite concurrent write limitations | Resolved — migrated to PostgreSQL |
 | MEDIUM-02 | 🟡 MEDIUM | In-memory rate limiting not cluster-safe | Open — needs Redis |
 | MEDIUM-03 | 🟡 MEDIUM | No CSRF protection | Open — needs middleware |
 | MEDIUM-05 | 🟡 MEDIUM | No rate limiting on credit operations | Open |
@@ -418,7 +418,7 @@ These findings from the original audit remain open and have not been addressed i
 | **A05: Security Misconfiguration** | ✅ PASS | ✅ PASS | Unchanged |
 | **A06: Vulnerable Components** | ✅ PASS | ✅ PASS | Unchanged |
 | **A07: Authentication Failures** | ⚠️ MEDIUM-02 + MEDIUM-04 | ✅ MEDIUM-04 fixed | Improved |
-| **A08: Software and Data Integrity** | ⚠️ HIGH-03 (SQLite) | ⚠️ HIGH-03 (SQLite) | Unchanged |
+| **A08: Software and Data Integrity** | ⚠️ HIGH-03 (SQLite) | ✅ HIGH-03 resolved via PostgreSQL | Improved |
 | **A09: Logging and Monitoring** | ✅ PASS | ✅ PASS | Unchanged |
 | **A10: SSRF** | ⚠️ MEDIUM-06 | ⚠️ MEDIUM-06 (mitigated) | Slightly improved |
 
@@ -433,7 +433,7 @@ These findings from the original audit remain open and have not been addressed i
 | **P1** | REG-02: Wrong credit source derivation | Regression | M | Next sprint |
 | **P1** | REG-04: Auto-key provides no protection | Regression | M | Next sprint |
 | **P1** | NEW-01: TOCTOU in rejectTopup | New | S | Next sprint |
-| **P2** | HIGH-03: SQLite → PostgreSQL | Remaining | L | Pre-production |
+| **P2** | HIGH-03: SQLite → PostgreSQL | Resolved | L | Completed |
 | **P2** | MEDIUM-02: Redis-based rate limiting | Remaining | M | Pre-production |
 | **P2** | MEDIUM-03: CSRF protection | Remaining | M | Pre-production |
 | **P2** | MEDIUM-05: Rate limiting on credit ops | Remaining | M | Pre-production |
@@ -469,7 +469,7 @@ The primary concern is the **idempotency implementation**, which has 4 issues ra
 
 **GO/NO-GO for Staging:** ✅ **GO** — System is safe for staging/QA with current fixes.
 
-**GO/NO-GO for Production:** ⚠️ **CONDITIONAL** — Fix REG-01, REG-03 (P0), HIGH-03 (SQLite migration), and MEDIUM-03 (CSRF) before production launch.
+**GO/NO-GO for Production:** ⚠️ **CONDITIONAL** — Fix REG-01, REG-03 (P0) and MEDIUM-03 (CSRF) before production launch.
 
 ---
 
@@ -486,3 +486,4 @@ The following checks were **not performed** in this re-scan:
 | CI/CD pipeline security | No CI config in scope | GitHub Actions review |
 | WebSocket/SSE security | Not used in credit system | N/A |
 | Third-party service security (n8n) | External system | n8n security review |
+

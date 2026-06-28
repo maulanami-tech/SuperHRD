@@ -609,7 +609,7 @@ Security headers (CSP, HSTS, X-Frame-Options, etc.) are only applied when `NODE_
 | **A05: Security Misconfiguration** | LOW-02, INFO-01 | ✅ Mostly PASS — security headers, error handling improved |
 | **A06: Vulnerable Components** | INFO-02 | ✅ PASS — no exploitable runtime vulnerabilities |
 | **A07: Authentication Failures** | MEDIUM-02 (rate limiting), MEDIUM-04 (JWT stale) | ⚠️ Partial — auth works but resilience gaps |
-| **A08: Software and Data Integrity** | HIGH-03 (SQLite) | ⚠️ PASS for dev, FAIL for production scale |
+| **A08: Software and Data Integrity** | HIGH-03 (SQLite, historical) | ✅ RESOLVED via PostgreSQL migration |
 | **A09: Logging and Monitoring** | None | ✅ PASS — auth events logged, no sensitive data in logs |
 | **A10: SSRF** | MEDIUM-06 (proofImageUrl) | ⚠️ Low risk but should be addressed |
 
@@ -663,7 +663,7 @@ The following checks were **not performed** in this audit and should be covered 
 | **P1** | HIGH-02: Upload idempotency | M | Next sprint |
 | **P1** | MEDIUM-04: JWT isAdmin refresh | M | Next sprint |
 | **P1** | MEDIUM-05: Rate limiting on credit ops | M | Next sprint |
-| **P2** | HIGH-03: SQLite → PostgreSQL | L | Before production launch |
+| **P2** | HIGH-03: SQLite → PostgreSQL | L | Resolved |
 | **P2** | MEDIUM-02: Redis-based rate limiting | M | Before production launch |
 | **P2** | MEDIUM-03: CSRF protection | M | Before production launch |
 | **P3** | MEDIUM-06: proofImageUrl SSRF | S | Backlog |
@@ -678,6 +678,7 @@ The following checks were **not performed** in this audit and should be covered 
 
 The credit payment system has a solid foundation: authentication is properly enforced, SQL injection is prevented by Prisma ORM, passwords are hashed with bcrypt, and the n8n callback uses timing-safe secret comparison. The audit trail via the `Transaction` model is a good design choice.
 
-However, the **concurrency handling in financial operations is the primary risk**. The `deductCredit()` function's non-atomic design creates a race condition window that could be exploited for double-spending. This fix has been applied in this PR. The remaining architectural issues (SQLite limitations, idempotency, CSRF, JWT refresh) should be addressed before production launch.
+However, the **concurrency handling in financial operations is the primary risk**. The `deductCredit()` function's non-atomic design creates a race condition window that could be exploited for double-spending. This fix has been applied in this PR. The remaining architectural issues (idempotency, CSRF, JWT refresh) should be addressed before production launch.
 
 **Overall Risk Rating:** ⚠️ **MEDIUM** — Safe for staging/QA with applied fixes. Address P0-P1 items before production deployment.
+
