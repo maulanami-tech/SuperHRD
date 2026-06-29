@@ -9,54 +9,40 @@ export async function checkRateLimit(
   key: string,
   config: RateLimitConfig
 ): Promise<{ allowed: boolean; remaining: number; resetMs: number }> {
-  const windowStart = new Date(Date.now() - config.windowMs);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - config.windowMs);
 
-  // Lazy cleanup of old entries
-  await prisma.rateLimit.deleteMany({
-    where: {
-      key,
-      windowStart: { lt: windowStart },
-    },
-  });
-
-  // Try to create a new record for this window.
-  // The @unique constraint on `key` ensures only one record per window;
-  // a duplicate insert will throw, which we catch below.
-  try {
-    await prisma.rateLimit.create({
-      data: { key, count: 1, windowStart: new Date() },
+  const record = await prisma.$transaction(async (tx) => {
+    await tx.rateLimit.deleteMany({
+      where: {
+        key,
+        windowStart: { lt: cutoff },
+      },
     });
-    return { allowed: true, remaining: config.maxRequests - 1, resetMs: config.windowMs };
-  } catch {
-    // Duplicate key — record exists, fall through to increment
-  }
 
-  // Find existing record and atomically increment
-  await prisma.rateLimit.updateMany({
-    where: {
-      key,
-      windowStart: { gte: windowStart },
-    },
-    data: { count: { increment: 1 } },
+    return tx.rateLimit.upsert({
+      where: { key },
+      create: {
+        key,
+        count: 1,
+        windowStart: now,
+      },
+      update: {
+        count: { increment: 1 },
+      },
+    });
   });
 
-  // Read the updated count
-  const record = await prisma.rateLimit.findFirst({
-    where: { key, windowStart: { gte: windowStart } },
-    orderBy: { windowStart: 'desc' },
-  });
+  const resetMs = Math.max(0, record.windowStart.getTime() + config.windowMs - Date.now());
 
-  if (!record || record.count > config.maxRequests) {
-    const resetMs = record
-      ? record.windowStart.getTime() + config.windowMs - Date.now()
-      : config.windowMs;
-    return { allowed: false, remaining: 0, resetMs: Math.max(0, resetMs) };
+  if (record.count > config.maxRequests) {
+    return { allowed: false, remaining: 0, resetMs };
   }
 
   return {
     allowed: true,
     remaining: Math.max(0, config.maxRequests - record.count),
-    resetMs: record.windowStart.getTime() + config.windowMs - Date.now(),
+    resetMs,
   };
 }
 

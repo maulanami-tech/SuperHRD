@@ -7,11 +7,32 @@ import {
 import { processMidtransTopupStatus } from "@/lib/midtrans-topup";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-// Midtrans retries notifications by design, and processing is idempotent, so we
-// cap a single order to a sane number of accepted notifications per hour. This
-// bounds outbound re-confirmation calls to the Midtrans API under replay.
 const NOTIFICATION_RATE_LIMIT_MAX = 10;
 const NOTIFICATION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function canProcessSignedBodyDirectly(body: MidtransNotification): boolean {
+  return Boolean(body.order_id && body.transaction_status && body.gross_amount && body.status_code);
+}
+
+function getMidtransErrorSummary(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  const midtransError = error as {
+    message?: string;
+    ApiResponse?: { status_code?: string; status_message?: string; id?: string };
+    httpStatusCode?: string | number;
+  };
+
+  return {
+    message: midtransError.message,
+    httpStatusCode: midtransError.httpStatusCode,
+    statusCode: midtransError.ApiResponse?.status_code,
+    statusMessage: midtransError.ApiResponse?.status_message,
+    responseId: midtransError.ApiResponse?.id,
+  };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,17 +42,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    // Rate limit per order AFTER signature verification: without a valid
-    // server key an attacker cannot forge a signature, so they cannot exhaust
-    // another order's quota.
     if (body.order_id) {
-      const rateLimit = await checkRateLimit(
-        `midtrans:webhook:${body.order_id}`,
-        {
-          windowMs: NOTIFICATION_RATE_LIMIT_WINDOW_MS,
-          maxRequests: NOTIFICATION_RATE_LIMIT_MAX,
-        },
-      );
+      const rateLimit = await checkRateLimit(`midtrans:webhook:${body.order_id}`, {
+        windowMs: NOTIFICATION_RATE_LIMIT_WINDOW_MS,
+        maxRequests: NOTIFICATION_RATE_LIMIT_MAX,
+      });
       if (!rateLimit.allowed) {
         return NextResponse.json(
           { error: "Too many notifications for this order" },
@@ -40,7 +55,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const notification = await parseMidtransNotification(body);
+    let notification: MidtransNotification;
+    try {
+      notification = await parseMidtransNotification(body);
+    } catch (error) {
+      if (!canProcessSignedBodyDirectly(body)) {
+        throw error;
+      }
+
+      console.warn("Midtrans notification parse fallback to signed body:", getMidtransErrorSummary(error));
+      notification = body;
+    }
+
     const result = await processMidtransTopupStatus(notification);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.httpStatus });

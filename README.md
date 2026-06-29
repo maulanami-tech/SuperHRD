@@ -138,7 +138,7 @@ For local or SIT testing, use sandbox keys and keep `MIDTRANS_IS_PRODUCTION=fals
 For the default internal debug stack, start PostgreSQL and the app together:
 
 ```bash
-docker compose up --build
+docker compose up --build --force-recreate
 ```
 
 The compose stack will:

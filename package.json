@@ -15,7 +15,7 @@
     "test:e2e:prod:batch-zip": "node e2e/batch-zip-production.mjs",
     "postinstall": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
-    "docker:up": "docker compose up --build",
+    "docker:up": "docker compose up --build --force-recreate",
     "docker:down": "docker compose down"
   },
   "dependencies": {

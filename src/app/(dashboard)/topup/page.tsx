@@ -21,20 +21,24 @@ interface CreditBalance {
   dailyQuotaRemaining: number;
 }
 
-interface QrisPayment {
+interface PaymentLinkTopup {
   topupRequestId: string;
   orderId: string;
   status: "pending" | "approved" | "rejected" | "expired";
   providerStatus: string | null;
   qrCodeUrl: string | null;
   qrString: string | null;
+  paymentUrl: string | null;
   expiresAt: string;
 }
 
 interface TopupRequest {
   id: string;
-  status: QrisPayment["status"];
+  status: PaymentLinkTopup["status"];
   providerStatus: string | null;
+  providerOrderId?: string | null;
+  qrCodeUrl?: string | null;
+  expiresAt?: string;
 }
 
 const BUNDLES = [
@@ -44,11 +48,11 @@ const BUNDLES = [
   { amountIdr: 500000, credits: 1250, bonus: "+25%", label: "Enterprise" },
 ];
 
-function getPaymentStatusCopy(payment: QrisPayment | null) {
+function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
   if (!payment) {
     return {
       title: "Waiting for payment",
-      description: "Create a QRIS payment to start.",
+      description: "Create a payment link to start.",
       className: "border bg-background text-foreground",
     };
   }
@@ -64,7 +68,7 @@ function getPaymentStatusCopy(payment: QrisPayment | null) {
   if (payment.status === "expired") {
     return {
       title: "Payment expired",
-      description: "Create a new QRIS payment to continue.",
+      description: "Create a new payment link to continue.",
       className: "border-amber-200 bg-amber-50 text-amber-800",
     };
   }
@@ -79,7 +83,7 @@ function getPaymentStatusCopy(payment: QrisPayment | null) {
 
   return {
     title: "Waiting for payment",
-    description: "Pay the QRIS code, then status will update automatically.",
+    description: "Open the payment link, complete the payment, then status will update automatically.",
     className: "border-blue-200 bg-blue-50 text-blue-800",
   };
 }
@@ -91,7 +95,7 @@ export default function TopupPage() {
   const [selectedBundle, setSelectedBundle] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
-  const [payment, setPayment] = useState<QrisPayment | null>(null);
+  const [payment, setPayment] = useState<PaymentLinkTopup | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const statusCopy = getPaymentStatusCopy(payment);
 
@@ -108,9 +112,44 @@ export default function TopupPage() {
     }
   }, []);
 
+  const loadLatestPendingPayment = useCallback(async () => {
+    try {
+      const res = await fetch("/api/topup/requests?status=pending&limit=20");
+      if (!res.ok) {
+        return;
+      }
+
+      const data: { requests?: Array<TopupRequest & { providerOrderId?: string | null; qrCodeUrl?: string | null; expiresAt?: string }> } = await res.json();
+      const current = data.requests?.find((request) => {
+        if (!request.providerOrderId || !request.expiresAt) {
+          return false;
+        }
+
+        return new Date(request.expiresAt).getTime() > Date.now();
+      });
+      if (!current?.providerOrderId || !current.expiresAt) {
+        setPayment(null);
+        return;
+      }
+
+      setPayment({
+        topupRequestId: current.id,
+        orderId: current.providerOrderId,
+        status: current.status,
+        providerStatus: current.providerStatus,
+        qrCodeUrl: current.qrCodeUrl ?? null,
+        qrString: null,
+        paymentUrl: current.qrCodeUrl ?? null,
+        expiresAt: current.expiresAt,
+      });
+    } catch {
+      // keep page usable even if pending request restore fails
+    }
+  }, []);
+
   useEffect(() => {
-    void Promise.resolve().then(fetchBalance);
-  }, [fetchBalance]);
+    void Promise.all([fetchBalance(), loadLatestPendingPayment()]);
+  }, [fetchBalance, loadLatestPendingPayment]);
 
   async function handleSubmit() {
     if (!selectedBundle) {
@@ -129,13 +168,13 @@ export default function TopupPage() {
         }),
       });
 
-      const data: QrisPayment & { error?: string } = await res.json();
+      const data: PaymentLinkTopup & { error?: string } = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to create QRIS payment");
+        throw new Error(data.error || "Failed to create payment link");
       }
 
       setPayment(data);
-      toast.success("QRIS payment created. Credits will be added after payment succeeds.");
+      toast.success("Payment link created. Open it to complete the payment.");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create payment"
@@ -155,7 +194,7 @@ export default function TopupPage() {
       });
       const syncData: {
         error?: string;
-        status?: QrisPayment["status"] | string;
+        status?: PaymentLinkTopup["status"] | string;
       } = await syncRes.json();
 
       if (!syncRes.ok) {
@@ -189,7 +228,7 @@ export default function TopupPage() {
           router.push("/dashboard");
         }, 1200);
       } else if (current.status === "expired") {
-        toast.error("Payment expired. Please create a new QRIS payment.");
+        toast.error("Payment expired. Please create a new payment link.");
       } else if (current.status === "rejected") {
         toast.error("Payment was rejected by provider.");
       } else {
@@ -288,36 +327,29 @@ export default function TopupPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>QRIS Payment</CardTitle>
+                <CardTitle>Midtrans Payment Link</CardTitle>
                 <CardDescription>
-                  Select a bundle, generate a QRIS code, then pay from your wallet or mobile banking app.
+                  Select a bundle, create a payment link, then complete payment on the Midtrans checkout page.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6 lg:grid-cols-[240px_1fr]">
-                <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
-                  {payment?.qrCodeUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={payment.qrCodeUrl}
-                      alt="Midtrans QRIS payment code"
-                      className="h-full w-full object-contain p-3"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <QrCode className="mx-auto h-14 w-14 text-primary" />
-                      <p className="mt-3 text-sm font-medium">QRIS Midtrans</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        QR code appears after you create a payment.
-                      </p>
-                    </div>
-                  )}
+                <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-muted/40 p-6">
+                  <div className="text-center">
+                    <QrCode className="mx-auto h-14 w-14 text-primary" />
+                    <p className="mt-3 text-sm font-medium">Midtrans Checkout</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {payment?.paymentUrl
+                        ? "Open the payment link to continue checkout on Midtrans."
+                        : "Payment link appears after you create a payment."}
+                    </p>
+                  </div>
                 </div>
                 <div className="space-y-4">
                   <div className="rounded-md border p-4">
                     <p className="text-sm font-medium">1. Payment amount</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {selectedBundle
-                        ? `Rp ${selectedBundle.toLocaleString("id-ID")} via QRIS Midtrans.`
+                        ? `Rp ${selectedBundle.toLocaleString("id-ID")} via Midtrans Payment Link.`
                         : "Choose a bundle above to see the payment amount."}
                     </p>
                   </div>
@@ -349,9 +381,9 @@ export default function TopupPage() {
                     </div>
                   )}
 
-                  {payment?.qrString && !payment.qrCodeUrl && (
+                  {payment?.paymentUrl && (
                     <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground break-all">
-                      {payment.qrString}
+                      {payment.paymentUrl}
                     </div>
                   )}
 
@@ -363,12 +395,12 @@ export default function TopupPage() {
                     {submitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating QRIS...
+                        Creating payment link...
                       </>
                     ) : (
                       <>
                         <QrCode className="mr-2 h-4 w-4" />
-                        Create QRIS Payment
+                        Create Payment Link
                       </>
                     )}
                   </Button>
@@ -389,15 +421,15 @@ export default function TopupPage() {
                         )}
                         {redirecting ? "Payment Successful" : "Check Status"}
                       </Button>
-                      {payment.qrCodeUrl && (
+                      {(payment.paymentUrl ?? payment.qrCodeUrl) && (
                         <Button variant="outline" asChild>
                           <a
-                            href={payment.qrCodeUrl}
+                            href={payment.paymentUrl ?? payment.qrCodeUrl ?? "#"}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
                             <ExternalLink className="mr-2 h-4 w-4" />
-                            Open QR
+                            Open Payment Link
                           </a>
                         </Button>
                       )}
