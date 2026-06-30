@@ -52,7 +52,11 @@ export function ResendVerificationForm({ compact = false }: ResendVerificationFo
           required
         />
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button
+        type="submit"
+        className="w-full bg-gradient-to-r from-primary to-violet-600 transition-all hover:from-primary/90 hover:to-violet-600/90 hover:shadow-lg hover:shadow-primary/25"
+        disabled={loading}
+      >
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -66,7 +70,7 @@ export function ResendVerificationForm({ compact = false }: ResendVerificationFo
         )}
       </Button>
       {sent && (
-        <p className={compact ? "text-center text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+        <p className={compact ? "text-center text-xs text-slate-500" : "text-sm text-slate-500"}>
           If that email belongs to an unverified account, a new link has been sent.
         </p>
       )}
