@@ -4,7 +4,8 @@ import { hashEmailVerificationToken } from "@/lib/email-verification";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
-  const redirectUrl = new URL("/verify-email", req.url);
+  const appUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? req.url;
+  const redirectUrl = new URL("/verify-email", appUrl);
 
   if (!token) {
     redirectUrl.searchParams.set("status", "invalid");
