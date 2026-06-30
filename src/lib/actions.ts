@@ -100,3 +100,70 @@ export async function registerUser(data: RegisterInput) {
     return { error: "Could not send verification email. Please try again later." };
   }
 }
+
+export async function resendVerificationEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !normalizedEmail.includes("@")) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const headersList = await headers();
+  const ip = getClientIpFromHeaders(headersList);
+  const [emailCheck, ipCheck] = await Promise.all([
+    checkRateLimit(`verify-email:resend:email:${normalizedEmail}`, {
+      windowMs: 15 * 60 * 1000,
+      maxRequests: 3,
+    }),
+    checkRateLimit(`verify-email:resend:ip:${ip}`, {
+      windowMs: 15 * 60 * 1000,
+      maxRequests: 10,
+    }),
+  ]);
+
+  if (!emailCheck.allowed || !ipCheck.allowed) {
+    return { error: "Too many verification email requests. Please try again later." };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, name: true, email: true, emailVerified: true },
+  });
+
+  if (!user) {
+    return { success: true };
+  }
+
+  if (user.emailVerified) {
+    return { error: "This email is already verified. Please sign in." };
+  }
+
+  const verification = createEmailVerificationToken();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.emailVerificationToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      await tx.emailVerificationToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: verification.tokenHash,
+          expiresAt: verification.expiresAt,
+        },
+      });
+    });
+
+    await sendEmailVerificationLink({
+      email: user.email,
+      name: user.name,
+      token: verification.token,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("[AUTH] Resend verification email failed", error);
+    return { error: "Could not send verification email. Please try again later." };
+  }
+}

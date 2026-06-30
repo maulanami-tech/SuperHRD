@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerUser } from "@/lib/actions";
+import { ResendVerificationForm } from "@/components/resend-verification-form";
 
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
@@ -78,7 +79,8 @@ export default function RegisterPage() {
               The link expires in 30 minutes.
             </p>
           </div>
-          <Button asChild className="w-full">
+          <ResendVerificationForm compact />
+          <Button asChild variant="outline" className="w-full">
             <Link href="/login">Back to sign in</Link>
           </Button>
         </div>

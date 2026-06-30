@@ -57,6 +57,23 @@ async function createUser(params: {
   });
 }
 
+async function createVerificationToken(params: {
+  email: string;
+  token: string;
+  expired?: boolean;
+}) {
+  await withClient(async (client) => {
+    const user = await client.query(`SELECT id FROM "User" WHERE email = $1`, [params.email]);
+    await client.query(
+      `
+        INSERT INTO "EmailVerificationToken" (id, "userId", "tokenHash", "expiresAt")
+        VALUES ($1, $2, $3, ${params.expired ? "NOW() - INTERVAL '1 minute'" : "NOW() + INTERVAL '30 minutes'"})
+      `,
+      [`token-${randomBytes(8).toString("hex")}`, user.rows[0].id, hashToken(params.token)],
+    );
+  });
+}
+
 test.describe("Email verification", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -72,6 +89,7 @@ test.describe("Email verification", () => {
 
     await expect(page.getByText("Check your email")).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByRole("button", { name: /send verification email/i })).toBeVisible();
 
     const user = await withClient(async (client) => {
       const result = await client.query(
@@ -103,16 +121,7 @@ test.describe("Email verification", () => {
     const token = randomBytes(32).toString("base64url");
 
     await createUser({ email, password });
-    await withClient(async (client) => {
-      const user = await client.query(`SELECT id FROM "User" WHERE email = $1`, [email]);
-      await client.query(
-        `
-          INSERT INTO "EmailVerificationToken" (id, "userId", "tokenHash", "expiresAt")
-          VALUES ($1, $2, $3, NOW() + INTERVAL '30 minutes')
-        `,
-        [`token-${randomBytes(8).toString("hex")}`, user.rows[0].id, hashToken(token)],
-      );
-    });
+    await createVerificationToken({ email, token });
 
     await page.goto(`/api/verify-email?token=${encodeURIComponent(token)}`);
     await expect(page).toHaveURL(/.*\/verify-email\?status=success/);
@@ -125,9 +134,23 @@ test.describe("Email verification", () => {
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
   });
 
+  test("expired verification token shows resend state", async ({ page }) => {
+    const email = uniqueEmail("verify-expired");
+    const token = randomBytes(32).toString("base64url");
+
+    await createUser({ email, password: "password123" });
+    await createVerificationToken({ email, token, expired: true });
+
+    await page.goto(`/api/verify-email?token=${encodeURIComponent(token)}`);
+    await expect(page).toHaveURL(/.*\/verify-email\?status=expired/);
+    await expect(page.getByText("Verification link expired")).toBeVisible();
+    await expect(page.getByRole("button", { name: /send verification email/i })).toBeVisible();
+  });
+
   test("invalid verification token shows invalid state", async ({ page }) => {
     await page.goto("/api/verify-email?token=invalid-token");
     await expect(page).toHaveURL(/.*\/verify-email\?status=invalid/);
     await expect(page.getByText("Verification link invalid")).toBeVisible();
+    await expect(page.getByRole("button", { name: /send verification email/i })).toBeVisible();
   });
 });

@@ -4,8 +4,7 @@ import { hashEmailVerificationToken } from "@/lib/email-verification";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
-  const appUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? req.url;
-  const redirectUrl = new URL("/verify-email", appUrl);
+  const redirectUrl = new URL("/verify-email", req.url);
 
   if (!token) {
     redirectUrl.searchParams.set("status", "invalid");
@@ -25,8 +24,13 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  if (!verificationToken || verificationToken.usedAt || verificationToken.expiresAt <= now) {
+  if (!verificationToken || verificationToken.usedAt) {
     redirectUrl.searchParams.set("status", "invalid");
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (verificationToken.expiresAt <= now) {
+    redirectUrl.searchParams.set("status", "expired");
     return NextResponse.redirect(redirectUrl);
   }
 
