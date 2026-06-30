@@ -36,7 +36,7 @@ export function MobileNav({ isAdmin }: MobileNavProps) {
     <nav
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden",
-        "border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        "border-t bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60"
       )}
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
@@ -54,14 +54,17 @@ export function MobileNav({ isAdmin }: MobileNavProps) {
               key={item.href + item.title}
               href={item.href}
               className={cn(
-                "flex min-h-11 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium transition-colors",
+                "relative flex min-h-11 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium transition-all duration-200",
                 isActive
                   ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-slate-400 hover:text-slate-600"
               )}
             >
               <item.icon className="h-5 w-5" />
               <span className="max-w-full truncate">{item.title}</span>
+              {isActive && (
+                <div className="absolute -bottom-0.5 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-violet-600" />
+              )}
             </Link>
           );
         })}

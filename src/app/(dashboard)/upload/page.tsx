@@ -4,7 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Archive, Loader2, Sparkles } from "lucide-react";
+import {
+  Archive,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  FileArchive,
+  FileText,
+  Info,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   batchUploadSchema,
@@ -27,7 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-type BatchInvalidFile = {
+ type BatchInvalidFile = {
   fileName: string;
   reason: string;
 };
@@ -40,12 +54,225 @@ type BatchSummary = {
   totalFiles?: number;
 };
 
+type UploadMode = "single" | "batch";
+
 const ZIP_ACCEPT = {
   "application/zip": [".zip"],
   "application/x-zip-compressed": [".zip"],
 };
 
 const MAX_ZIP_SIZE = 50 * 1024 * 1024;
+
+function RequiredMark() {
+  return <span className="text-red-600">*</span>;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-sm text-red-600">{message}</p>;
+}
+
+function FormSection({
+  children,
+  description,
+  icon: Icon,
+  title,
+}: {
+  children: React.ReactNode;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4 border-b border-slate-100 px-5 py-5 last:border-b-0 sm:px-6">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AiSetupPanel({
+  disabled,
+  generating,
+  mode,
+  onGenerate,
+}: {
+  disabled: boolean;
+  generating: boolean;
+  mode: UploadMode;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-blue-950">
+            <Sparkles className="h-4 w-4 text-blue-700" />
+            Generate criteria with AI
+          </div>
+          <p className="mt-1 text-sm leading-6 text-blue-900/75">
+            Optional. Uses 1 paid credit and fills the criteria and prompt fields for this {mode === "batch" ? "batch role" : "candidate role"}.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={generating || disabled}
+          onClick={onGenerate}
+          className="shrink-0 border-blue-300 bg-white text-blue-800 hover:bg-blue-100"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate with AI
+            </>
+          )}
+        </Button>
+      </div>
+      {disabled && !generating && (
+        <p className="mt-3 text-xs font-medium text-blue-800">
+          Enter a position first to enable generation.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function WorkflowPanel({ mode }: { mode: UploadMode }) {
+  const steps = mode === "single"
+    ? [
+        "Add candidate identity",
+        "Set role and screening criteria",
+        "Attach one CV file",
+        "Queue AI screening",
+      ]
+    : [
+        "Set one role for the batch",
+        "Attach a ZIP with CV files",
+        "Review accepted and skipped files",
+        "Open the batch on dashboard",
+      ];
+
+  return (
+    <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+      <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+        <CardHeader className="gap-1">
+          <CardTitle className="flex items-center gap-2 text-base text-slate-950">
+            <ShieldCheck className="h-4 w-4 text-emerald-700" />
+            Screening workflow
+          </CardTitle>
+          <CardDescription>What happens after this form is submitted.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {steps.map((step, index) => (
+            <div key={step} className="flex gap-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+                {index + 1}
+              </div>
+              <p className="pt-1 text-sm leading-5 text-slate-700">{step}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+        <CardHeader className="gap-1">
+          <CardTitle className="flex items-center gap-2 text-base text-slate-950">
+            <Info className="h-4 w-4 text-blue-700" />
+            File requirements
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
+          {mode === "single" ? (
+            <>
+              <p>Accepted: PDF, DOCX, or DOC.</p>
+              <p>Maximum file size: 10MB.</p>
+              <p>Use a clear role and criteria to improve screening quality.</p>
+            </>
+          ) : (
+            <>
+              <p>Accepted: one ZIP file up to 50MB.</p>
+              <p>Up to 50 valid CVs can be queued in one batch.</p>
+              <p>Skipped files are reported before you leave the page.</p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </aside>
+  );
+}
+
+function BatchSummaryCard({
+  summary,
+  onViewBatch,
+}: {
+  summary: BatchSummary;
+  onViewBatch: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Accepted</p>
+          <p className="mt-1 text-2xl font-semibold text-emerald-950">{summary.acceptedFiles}</p>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Skipped</p>
+          <p className="mt-1 text-2xl font-semibold text-amber-950">{summary.rejectedFiles}</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-950">{summary.totalFiles ?? "-"}</p>
+        </div>
+      </div>
+
+      {summary.invalidFiles.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            Files to fix
+          </div>
+          <div className="max-h-44 overflow-auto rounded-lg border border-slate-200 bg-white">
+            {summary.invalidFiles.map((item, index) => (
+              <div
+                key={`${item.fileName}-${index}`}
+                className="grid gap-1 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_1.2fr]"
+              >
+                <span className="truncate font-medium text-slate-900">{item.fileName}</span>
+                <span className="text-slate-500">{item.reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {summary.batchId && (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 border-slate-300 bg-white"
+          onClick={onViewBatch}
+        >
+          View batch on dashboard
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export default function UploadPage() {
   const router = useRouter();
@@ -89,7 +316,7 @@ export default function UploadPage() {
     },
   });
 
-  async function generatePrompt(mode: "single" | "batch") {
+  async function generatePrompt(mode: UploadMode) {
     const isBatch = mode === "batch";
     const currentPosisi = isBatch ? batchPosisiValue : posisiValue;
     if (!currentPosisi?.trim()) {
@@ -232,354 +459,360 @@ export default function UploadPage() {
   return (
     <>
       <Header
-        title="Upload CV"
-        description="Submit a candidate CV for AI screening"
-        breadcrumb={[{ label: "Dashboard", href: "/dashboard" }, { label: "Upload CV" }]}
+        title="Screening intake"
+        description="Upload CV files and configure evaluation criteria"
+        breadcrumb={[{ label: "Dashboard", href: "/dashboard" }, { label: "Upload" }]}
       />
 
-      <main className="flex-1 p-4 md:p-6">
-        <div className="mx-auto max-w-3xl">
-          <Tabs defaultValue="single" className="gap-4">
-            <TabsList className="grid w-full grid-cols-2 sm:w-[360px]">
-              <TabsTrigger value="single">Single CV</TabsTrigger>
-              <TabsTrigger value="batch">Batch ZIP</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="single">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Candidate Information</CardTitle>
-                  <CardDescription>
-                    Fill in the details and upload the candidate&apos;s CV
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Candidate Name <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  placeholder="Enter candidate name"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-sm text-destructive">
-                    {errors.name.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (optional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="candidate@example.com"
-                  {...register("email")}
-                />
-                {errors.email && (
-                  <p className="text-sm text-destructive">
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="posisi">
-                  Position <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="posisi"
-                  placeholder="e.g. Senior Backend Developer"
-                  {...register("posisi", {
-                    onChange: (event) => setPosisiValue(event.target.value),
-                  })}
-                />
-                {errors.posisi && (
-                  <p className="text-sm text-destructive">{errors.posisi.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Optional AI setup</p>
-                    <p className="text-sm text-muted-foreground">
-                      Optional - uses 1 paid credit. You can edit the result before uploading.
-                    </p>
+      <main className="min-w-0 flex-1 overflow-x-hidden bg-slate-50/70 p-4 pb-28 md:p-6 md:pb-8">
+        <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-5">
+          <section className="overflow-hidden rounded-lg border border-blue-100 bg-gradient-to-br from-white via-blue-50/80 to-emerald-50/70 shadow-sm">
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="p-5 sm:p-6 lg:p-7">
+                <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-white px-3 py-1 text-sm font-medium text-blue-800 shadow-xs">
+                  <ShieldCheck className="h-4 w-4" />
+                  Upload workspace
+                </div>
+                <h1 className="mt-4 max-w-3xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+                  Start a screening workflow with the right file and role brief.
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+                  Choose a single candidate or batch ZIP, add the role context, then queue AI screening with criteria your team can review later.
+                </p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-md border border-slate-200 bg-white/85 p-3 shadow-xs">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      Role context
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Tell the screening engine what role to evaluate.</p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={generating || !posisiValue.trim()}
-                    onClick={() => generatePrompt("single")}
-                  >
-                    {generating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate with AI
-                      </>
-                    )}
-                  </Button>
+                  <div className="rounded-md border border-slate-200 bg-white/85 p-3 shadow-xs">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                      <Sparkles className="h-4 w-4 text-blue-700" />
+                      AI criteria
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Generate or write criteria before upload.</p>
+                  </div>
+                  <div className="rounded-md border border-slate-200 bg-white/85 p-3 shadow-xs">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                      <Upload className="h-4 w-4 text-slate-700" />
+                      Queue tracking
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Follow screening status from dashboard.</p>
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="kriteria">
-                  Evaluation Criteria <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="kriteria"
-                  placeholder="e.g. Minimum 3 years of Python experience"
-                  rows={3}
-                  {...register("kriteria")}
-                />
-                {errors.kriteria && (
-                  <p className="text-sm text-destructive">{errors.kriteria.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prompt">
-                  AI Prompt <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="e.g. Evaluate this CV against the criteria above"
-                  rows={3}
-                  {...register("prompt")}
-                />
-                {errors.prompt && (
-                  <p className="text-sm text-destructive">{errors.prompt.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>CV File</Label>
-                <FileDropzone file={file} onFileChange={setFile} />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                disabled={submitting || !file}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  "Upload & Screen"
-                )}
-              </Button>
-            </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="batch">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Archive className="h-5 w-5" />
+              <div className="border-t border-blue-100 bg-white/70 p-5 sm:p-6 lg:border-l lg:border-t-0">
+                <p className="text-sm font-semibold text-slate-950">Pick the right intake flow</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Both paths use the same screening engine and appear in the dashboard queue.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-md border border-slate-200 bg-white p-3 shadow-xs">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                      <FileText className="h-4 w-4 text-blue-700" />
+                      Single CV
                     </div>
-                    <div>
-                      <CardTitle>Batch ZIP Screening</CardTitle>
-                      <CardDescription>
-                        Upload many CVs for one role and review skipped files
-                        before fixing the ZIP.
-                      </CardDescription>
-                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Best for one candidate with personal details.</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <form
-                    onSubmit={handleBatchSubmit(onBatchSubmit)}
-                    className="space-y-6"
-                  >
-                    <div className="space-y-2">
-                      <Label htmlFor="batch-posisi">
-                        Position <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="batch-posisi"
-                        placeholder="e.g. Senior Backend Developer"
-                        {...registerBatch("posisi", {
-                          onChange: (event) => setBatchPosisiValue(event.target.value),
-                        })}
-                      />
-                      {batchErrors.posisi && (
-                        <p className="text-sm text-destructive">
-                          {batchErrors.posisi.message}
-                        </p>
-                      )}
+                  <div className="rounded-md border border-slate-200 bg-white p-3 shadow-xs">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                      <Archive className="h-4 w-4 text-blue-700" />
+                      Batch ZIP
                     </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Best for many CVs using one shared role brief.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-                    <div className="space-y-2">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-sm font-medium">Optional AI setup</p>
-                          <p className="text-sm text-muted-foreground">
-                            Optional - uses 1 paid credit. You can edit the result before uploading.
-                          </p>
+          <Tabs defaultValue="single" className="gap-5">
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 text-slate-600 shadow-none sm:grid-cols-2 lg:w-[760px]">
+              <TabsTrigger
+                value="single"
+                className="h-auto justify-start rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-blue-200 hover:bg-blue-50/40 data-[state=active]:border-blue-300 data-[state=active]:bg-white data-[state=active]:text-slate-950 data-[state=active]:shadow-md"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Single CV</span>
+                  <span className="mt-1 block text-xs font-normal text-slate-500">One candidate, one file, full profile context</span>
+                </span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="batch"
+                className="h-auto justify-start rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-blue-200 hover:bg-blue-50/40 data-[state=active]:border-blue-300 data-[state=active]:bg-white data-[state=active]:text-slate-950 data-[state=active]:shadow-md"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+                  <Archive className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Batch ZIP</span>
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Many CVs sharing one role brief</span>
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="single" className="min-w-0">
+              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <Card className="min-w-0 gap-0 rounded-lg border-slate-200 bg-white shadow-sm">
+                  <CardHeader className="border-b border-slate-100 pb-5">
+                    <CardTitle className="text-lg text-slate-950">Single candidate screening</CardTitle>
+                    <CardDescription>
+                      Use this flow when each CV has unique candidate information.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <form onSubmit={handleSubmit(onSubmit)}>
+                      <FormSection
+                        icon={UserRound}
+                        title="Candidate details"
+                        description="Identify the person attached to this CV. Email is optional but useful for follow-up."
+                      >
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="name">
+                              Candidate Name <RequiredMark />
+                            </Label>
+                            <Input id="name" placeholder="Enter candidate name" {...register("name")} />
+                            <FieldError message={errors.name?.message} />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="email">Email (optional)</Label>
+                            <Input id="email" type="email" placeholder="candidate@example.com" {...register("email")} />
+                            <FieldError message={errors.email?.message} />
+                          </div>
                         </div>
+                      </FormSection>
+
+                      <FormSection
+                        icon={Sparkles}
+                        title="Screening brief"
+                        description="Define the role and the exact criteria the AI should use during evaluation."
+                      >
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="posisi">
+                              Position <RequiredMark />
+                            </Label>
+                            <Input
+                              id="posisi"
+                              placeholder="e.g. Senior Backend Developer"
+                              {...register("posisi", {
+                                onChange: (event) => setPosisiValue(event.target.value),
+                              })}
+                            />
+                            <FieldError message={errors.posisi?.message} />
+                          </div>
+
+                          <AiSetupPanel
+                            mode="single"
+                            disabled={!posisiValue.trim()}
+                            generating={generating}
+                            onGenerate={() => generatePrompt("single")}
+                          />
+
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="kriteria">
+                                Evaluation Criteria <RequiredMark />
+                              </Label>
+                              <Textarea
+                                id="kriteria"
+                                placeholder="e.g. Minimum 3 years of Python experience"
+                                rows={5}
+                                {...register("kriteria")}
+                              />
+                              <FieldError message={errors.kriteria?.message} />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="prompt">
+                                AI Prompt <RequiredMark />
+                              </Label>
+                              <Textarea
+                                id="prompt"
+                                placeholder="e.g. Evaluate this CV against the criteria above"
+                                rows={5}
+                                {...register("prompt")}
+                              />
+                              <FieldError message={errors.prompt?.message} />
+                            </div>
+                          </div>
+                        </div>
+                      </FormSection>
+
+                      <FormSection
+                        icon={Upload}
+                        title="Source CV"
+                        description="Attach the candidate document. Screening starts after upload succeeds."
+                      >
+                        <FileDropzone file={file} onFileChange={setFile} />
+                      </FormSection>
+
+                      <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <p className="text-sm text-slate-500">
+                          The candidate will appear on the dashboard once queued.
+                        </p>
                         <Button
-                          type="button"
-                          variant="outline"
-                          disabled={batchGenerating || !batchPosisiValue.trim()}
-                          onClick={() => generatePrompt("batch")}
+                          type="submit"
+                          className="bg-blue-700 text-white hover:bg-blue-800 sm:min-w-40"
+                          disabled={submitting || !file}
                         >
-                          {batchGenerating ? (
+                          {submitting ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Generating...
+                              Uploading...
                             </>
                           ) : (
                             <>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Generate with AI
+                              Upload & Screen
+                              <ArrowRight className="ml-2 h-4 w-4" />
                             </>
                           )}
                         </Button>
                       </div>
-                    </div>
+                    </form>
+                  </CardContent>
+                </Card>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="batch-kriteria">
-                        Evaluation Criteria{" "}
-                        <span className="text-destructive">*</span>
-                      </Label>
-                      <Textarea
-                        id="batch-kriteria"
-                        placeholder="e.g. Minimum 3 years of Python experience"
-                        rows={3}
-                        {...registerBatch("kriteria")}
-                      />
-                      {batchErrors.kriteria && (
-                        <p className="text-sm text-destructive">
-                          {batchErrors.kriteria.message}
-                        </p>
-                      )}
-                    </div>
+                <WorkflowPanel mode="single" />
+              </div>
+            </TabsContent>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="batch-prompt">
-                        AI Prompt <span className="text-destructive">*</span>
-                      </Label>
-                      <Textarea
-                        id="batch-prompt"
-                        placeholder="e.g. Evaluate every CV against the criteria above"
-                        rows={3}
-                        {...registerBatch("prompt")}
-                      />
-                      {batchErrors.prompt && (
-                        <p className="text-sm text-destructive">
-                          {batchErrors.prompt.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>ZIP File</Label>
-                      <FileDropzone
-                        accept={ZIP_ACCEPT}
-                        description="ZIP — max 50MB, up to 50 valid CVs"
-                        file={batchFile}
-                        invalidTypeMessage="Invalid file type. Only ZIP files are accepted."
-                        label="Drag & drop your ZIP here"
-                        maxSize={MAX_ZIP_SIZE}
-                        onFileChange={setBatchFile}
-                        tooLargeMessage="ZIP is too large. Maximum size is 50MB."
-                      />
-                    </div>
-
-                    {batchSummary && (
-                      <div className="rounded-lg border bg-muted/30 p-4">
-                        <div className="grid gap-3 text-sm sm:grid-cols-3">
-                          <div>
-                            <p className="text-muted-foreground">Accepted</p>
-                            <p className="text-xl font-semibold">
-                              {batchSummary.acceptedFiles}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Skipped</p>
-                            <p className="text-xl font-semibold">
-                              {batchSummary.rejectedFiles}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Total</p>
-                            <p className="text-xl font-semibold">
-                              {batchSummary.totalFiles ?? "-"}
-                            </p>
-                          </div>
+            <TabsContent value="batch" className="min-w-0">
+              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <Card className="min-w-0 gap-0 rounded-lg border-slate-200 bg-white shadow-sm">
+                  <CardHeader className="border-b border-slate-100 pb-5">
+                    <CardTitle className="flex items-center gap-2 text-lg text-slate-950">
+                      <FileArchive className="h-5 w-5 text-blue-700" />
+                      Batch ZIP screening
+                    </CardTitle>
+                    <CardDescription>
+                      Use this flow when many CVs share one role and one evaluation brief.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <form onSubmit={handleBatchSubmit(onBatchSubmit)}>
+                      <FormSection
+                        icon={Users}
+                        title="Batch role"
+                        description="All CVs in this ZIP will use the same role and screening criteria."
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor="batch-posisi">
+                            Position <RequiredMark />
+                          </Label>
+                          <Input
+                            id="batch-posisi"
+                            placeholder="e.g. Senior Backend Developer"
+                            {...registerBatch("posisi", {
+                              onChange: (event) => setBatchPosisiValue(event.target.value),
+                            })}
+                          />
+                          <FieldError message={batchErrors.posisi?.message} />
                         </div>
+                      </FormSection>
 
-                        {batchSummary.invalidFiles.length > 0 && (
-                          <div className="mt-4 space-y-2">
-                            <p className="text-sm font-medium">
-                              Files to fix
-                            </p>
-                            <div className="max-h-44 overflow-auto rounded-lg border bg-background">
-                              {batchSummary.invalidFiles.map((item, index) => (
-                                <div
-                                  key={`${item.fileName}-${index}`}
-                                  className="grid gap-1 border-b px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_1.2fr]"
-                                >
-                                  <span className="truncate font-medium">
-                                    {item.fileName}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    {item.reason}
-                                  </span>
-                                </div>
-                              ))}
+                      <FormSection
+                        icon={Sparkles}
+                        title="Shared screening brief"
+                        description="Generate or write one consistent prompt for every CV in the batch."
+                      >
+                        <div className="space-y-4">
+                          <AiSetupPanel
+                            mode="batch"
+                            disabled={!batchPosisiValue.trim()}
+                            generating={batchGenerating}
+                            onGenerate={() => generatePrompt("batch")}
+                          />
+
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="batch-kriteria">
+                                Evaluation Criteria <RequiredMark />
+                              </Label>
+                              <Textarea
+                                id="batch-kriteria"
+                                placeholder="e.g. Minimum 3 years of Python experience"
+                                rows={5}
+                                {...registerBatch("kriteria")}
+                              />
+                              <FieldError message={batchErrors.kriteria?.message} />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="batch-prompt">
+                                AI Prompt <RequiredMark />
+                              </Label>
+                              <Textarea
+                                id="batch-prompt"
+                                placeholder="e.g. Evaluate every CV against the criteria above"
+                                rows={5}
+                                {...registerBatch("prompt")}
+                              />
+                              <FieldError message={batchErrors.prompt?.message} />
                             </div>
                           </div>
-                        )}
+                        </div>
+                      </FormSection>
 
-                        {batchSummary.batchId && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="mt-4"
-                            onClick={() =>
-                              router.push(`/dashboard?batchId=${batchSummary.batchId}`)
-                            }
-                          >
-                            View batch on dashboard
-                          </Button>
+                      <FormSection
+                        icon={Archive}
+                        title="ZIP file"
+                        description="Upload one ZIP. Invalid files will be listed here so the archive can be fixed."
+                      >
+                        <FileDropzone
+                          accept={ZIP_ACCEPT}
+                          description="ZIP - max 50MB, up to 50 valid CVs"
+                          file={batchFile}
+                          invalidTypeMessage="Invalid file type. Only ZIP files are accepted."
+                          label="Drag & drop your ZIP here"
+                          maxSize={MAX_ZIP_SIZE}
+                          onFileChange={setBatchFile}
+                          tooLargeMessage="ZIP is too large. Maximum size is 50MB."
+                        />
+
+                        {batchSummary && (
+                          <BatchSummaryCard
+                            summary={batchSummary}
+                            onViewBatch={() => router.push(`/dashboard?batchId=${batchSummary.batchId}`)}
+                          />
                         )}
+                      </FormSection>
+
+                      <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <p className="text-sm text-slate-500">
+                          Accepted CVs will be queued immediately after upload.
+                        </p>
+                        <Button
+                          type="submit"
+                          className="bg-blue-700 text-white hover:bg-blue-800 sm:min-w-44"
+                          disabled={batchSubmitting || !batchFile}
+                        >
+                          {batchSubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Uploading batch...
+                            </>
+                          ) : (
+                            <>
+                              Upload ZIP & Screen
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </>
+                          )}
+                        </Button>
                       </div>
-                    )}
+                    </form>
+                  </CardContent>
+                </Card>
 
-                    <Button
-                      type="submit"
-                      className="w-full sm:w-auto"
-                      disabled={batchSubmitting || !batchFile}
-                    >
-                      {batchSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Uploading batch...
-                        </>
-                      ) : (
-                        "Upload ZIP & Screen"
-                      )}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+                <WorkflowPanel mode="batch" />
+              </div>
             </TabsContent>
           </Tabs>
         </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Coins } from "lucide-react";
+import { ArrowRight, Coins, Gauge, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CreditBalanceCardProps {
@@ -14,34 +14,59 @@ export function CreditBalanceCard({
   totalPurchased,
 }: CreditBalanceCardProps) {
   return (
-    <div className="overflow-hidden rounded-lg bg-gradient-to-br from-indigo-500 via-primary to-violet-600 p-6 text-primary-foreground shadow-lg shadow-primary/20">
-      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-white/80">
-            <Coins className="h-4 w-4" />
-            Your Credit Balance
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white">
+          <Coins className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold leading-5 text-slate-950">
+            Screening capacity
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Credits and daily quota available for screening.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <Gauge className="h-3.5 w-3.5" />
+            Paid credits
           </div>
-          <div className="mt-3 flex items-end gap-2">
-            <span className="text-5xl font-semibold tracking-tight">
-              {balance}
-            </span>
-            <span className="pb-2 text-sm text-white/75">paid credits</span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/75">
-            <span>{balance} paid screenings remaining</span>
-            <span>Free quota: {dailyQuotaRemaining}/5 today</span>
-            {typeof totalPurchased === "number" && (
-              <span>Total purchased: {totalPurchased}</span>
-            )}
+          <div className="mt-1 text-2xl font-semibold text-slate-950">
+            {balance}
           </div>
         </div>
-        <Button asChild className="bg-white text-primary hover:bg-white/90">
-          <Link href="/topup">
-            Top Up Now
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-emerald-700">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Free quota
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-900">
+            {dailyQuotaRemaining}/5
+          </div>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Total purchased
+              </div>
+              <div className="mt-1 text-2xl font-semibold text-slate-950">
+                {typeof totalPurchased === "number" ? totalPurchased : 0}
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm" className="shrink-0 border-slate-300">
+              <Link href="/topup">
+                Top up
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   FileUp,
   LogOut,
-  Users,
   BarChart3,
   Wallet,
   History,
@@ -53,10 +52,14 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="flex h-14 items-center px-4">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Users className="h-4 w-4 text-primary-foreground" />
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <img
+            src="/superhrd-logo-mark.svg"
+            alt=""
+            className="h-8 w-8 shrink-0"
+            width={32}
+            height={32}
+          />
           <span className="text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
             SuperHRD
           </span>
@@ -78,6 +81,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
+                      className="transition-colors duration-200 data-[active=true]:bg-gradient-to-r data-[active=true]:from-primary/10 data-[active=true]:to-violet-100 data-[active=true]:text-primary data-[active=true]:font-medium"
                     >
                       <Link
                         href={item.href}
@@ -109,6 +113,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
                         asChild
                         isActive={isActive}
                         tooltip={item.title}
+                        className="transition-colors duration-200 data-[active=true]:bg-gradient-to-r data-[active=true]:from-primary/10 data-[active=true]:to-violet-100 data-[active=true]:text-primary data-[active=true]:font-medium"
                       >
                         <Link
                           href={item.href}
@@ -133,7 +138,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
           <Button
             type="submit"
             variant="ghost"
-            className="w-full justify-start gap-2"
+            className="w-full justify-start gap-2 transition-colors duration-200 hover:bg-red-50 hover:text-red-600"
             size="sm"
           >
             <LogOut className="h-4 w-4" />

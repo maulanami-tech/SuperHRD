@@ -21,7 +21,7 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar isAdmin={isAdmin} />
-      <div className="flex min-h-screen flex-1 flex-col pb-16 md:pb-0">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-hidden pb-20 md:pb-0">
         {children}
       </div>
       <MobileNav isAdmin={isAdmin} />

@@ -73,7 +73,8 @@
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ui-ux-pro-max-cli": "^2.10.0"
   },
   "overrides": {
     "@hono/node-server": "^1.19.13",
