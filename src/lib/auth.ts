@@ -20,10 +20,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !password) return null;
 
+        const normalizedEmail = email.toLowerCase();
         const ip = getClientIpFromHeaders(req?.headers as Headers || new Headers());
 
         // Per-email rate limit: 5 attempts per 15 minutes
-        const emailCheck = await checkRateLimit(`login:email:${email}`, {
+        const emailCheck = await checkRateLimit(`login:email:${normalizedEmail}`, {
           windowMs: 15 * 60 * 1000,
           maxRequests: 5,
         });
@@ -31,7 +32,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           // Rate limit enforced server-side. Returning null causes NextAuth to
           // return 401 (not 429) — this is intentional to prevent information
           // leakage about rate-limit state or account enumeration.
-          console.warn(`[AUTH] Rate limited (email): email=${email}`);
+          console.warn(`[AUTH] Rate limited (email): email=${normalizedEmail}`);
           return null;
         }
 
@@ -47,21 +48,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const user = await prisma.user.findUnique({
-          where: { email },
+          where: { email: normalizedEmail },
         });
 
         if (!user) {
-          console.warn(`[AUTH] Login failed: unknown email=${email}`);
+          console.warn(`[AUTH] Login failed: unknown email=${normalizedEmail}`);
+          return null;
+        }
+
+        if (!user.emailVerified) {
+          console.warn(`[AUTH] Login failed: unverified email=${normalizedEmail}`);
           return null;
         }
 
         const isValid = await compare(password, user.passwordHash);
         if (!isValid) {
-          console.warn(`[AUTH] Login failed: bad password for email=${email}`);
+          console.warn(`[AUTH] Login failed: bad password for email=${normalizedEmail}`);
           return null;
         }
 
-        console.info(`[AUTH] Login success: email=${email} userId=${user.id}`);
+        console.info(`[AUTH] Login success: email=${normalizedEmail} userId=${user.id}`);
         return { id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin };
       },
     }),
