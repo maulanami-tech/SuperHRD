@@ -64,6 +64,7 @@ AGENTS.md
 # qoder prompts, specs, and role templates
 .qoder/
 .claude/
+.opencode/
 
 # qa and security reports
 qa-reports/
