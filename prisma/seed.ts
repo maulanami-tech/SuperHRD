@@ -15,17 +15,20 @@ async function main() {
 
   const defaultPassword = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(16).toString("hex");
   const passwordHash = hashSync(defaultPassword, 10);
+  const now = new Date();
 
   // Create/update admin user
   const admin = await prisma.user.upsert({
     where: { email: "hrd@superhrd.com" },
     update: {
       isAdmin: true,
+      emailVerified: now,
     },
     create: {
       name: "HRD Admin",
       email: "hrd@superhrd.com",
       passwordHash,
+      emailVerified: now,
       isAdmin: true,
       creditBalance: 0,
       dailyQuotaUsed: 0,
@@ -40,11 +43,14 @@ async function main() {
 
   const testUser = await prisma.user.upsert({
     where: { email: "test@superhrd.com" },
-    update: {},
+    update: {
+      emailVerified: now,
+    },
     create: {
       name: "Test User",
       email: "test@superhrd.com",
       passwordHash: testPassword,
+      emailVerified: now,
       isAdmin: false,
       creditBalance: 10,
       dailyQuotaUsed: 0,

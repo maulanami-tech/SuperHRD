@@ -24,16 +24,17 @@ setup("authenticate", async ({ page }) => {
   await client.query(
     `
       INSERT INTO "User" (
-        id, name, email, "passwordHash", "creditBalance", "dailyQuotaUsed",
+        id, name, email, "passwordHash", "emailVerified", "creditBalance", "dailyQuotaUsed",
         "lastQuotaDate", "isAdmin", "createdAt"
       )
       VALUES (
-        'test-admin-user', 'HRD Admin', $3, $1,
+        'test-admin-user', 'HRD Admin', $3, $1, $2,
         25, 0, '', true, $2
       )
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         "passwordHash" = excluded."passwordHash",
+        "emailVerified" = excluded."emailVerified",
         "creditBalance" = 25,
         "dailyQuotaUsed" = 0,
         "lastQuotaDate" = '',
