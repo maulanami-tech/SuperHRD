@@ -18,11 +18,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import type { Candidate } from "@/lib/types";
 import { ScoreBadge } from "@/components/score-badge";
 import { StatusBadge } from "@/components/status-badge";
+import { useI18n } from "@/components/i18n-provider";
+import { formatRelativeDate } from "@/lib/i18n/format";
 import {
   Table,
   TableBody,
@@ -70,6 +71,7 @@ export function CandidatesTable({
   onDeleted,
 }: CandidatesTableProps) {
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: true },
   ]);
@@ -85,35 +87,35 @@ export function CandidatesTable({
           method: "DELETE",
         });
         if (res.status === 404) {
-          toast("Candidate already removed");
+          toast(t("candidates.alreadyRemoved"));
           setDeletedIds((prev) => new Set(prev).add(candidate.id));
           onDeleted?.(candidate.id);
           return;
         }
         if (!res.ok) {
-          let message = "Failed to remove candidate";
+          let message = t("candidates.removeFailed");
           try {
             const body = await res.json();
             if (body?.error) message = body.error;
           } catch {
-            // non-JSON response — keep default message
+            // Keep default message for non-JSON responses.
           }
           toast.error(message);
           return;
         }
-        toast.success("Candidate removed");
+        toast.success(t("candidates.removed"));
         setDeletedIds((prev) => new Set(prev).add(candidate.id));
         onDeleted?.(candidate.id);
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to remove candidate"
+          err instanceof Error ? err.message : t("candidates.removeFailed")
         );
       } finally {
         setIsDeleting(false);
         setConfirmTarget(null);
       }
     },
-    [onDeleted]
+    [onDeleted, t]
   );
 
   const columns = useMemo<ColumnDef<Candidate>[]>(
@@ -126,7 +128,7 @@ export function CandidatesTable({
             className="-ml-4 h-8"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            Name
+            {t("auth.name")}
             <ArrowUpDown className="ml-1 h-3 w-3" />
           </Button>
         ),
@@ -145,7 +147,7 @@ export function CandidatesTable({
             className="-ml-4 h-8"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            Position
+            {t("common.position")}
             <ArrowUpDown className="ml-1 h-3 w-3" />
           </Button>
         ),
@@ -153,7 +155,7 @@ export function CandidatesTable({
           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <Briefcase className="h-3.5 w-3.5 shrink-0" />
             <span className="max-w-[160px] truncate">
-              {row.original.posisi || "—"}
+              {row.original.posisi || "-"}
             </span>
           </span>
         ),
@@ -165,16 +167,16 @@ export function CandidatesTable({
       },
       {
         accessorKey: "email",
-        header: "Email",
+        header: t("common.email"),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.email || "—"}
+            {row.original.email || "-"}
           </span>
         ),
       },
       {
         accessorKey: "fileName",
-        header: "File",
+        header: t("common.file"),
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -194,7 +196,7 @@ export function CandidatesTable({
             className="-ml-4 h-8"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            Score
+            {t("common.score")}
             <ArrowUpDown className="ml-1 h-3 w-3" />
           </Button>
         ),
@@ -207,7 +209,7 @@ export function CandidatesTable({
       },
       {
         accessorKey: "status",
-        header: "Status",
+        header: t("common.status"),
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
         enableSorting: false,
       },
@@ -219,22 +221,20 @@ export function CandidatesTable({
             className="-ml-4 h-8"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            Submitted
+            {t("common.submitted")}
             <ArrowUpDown className="ml-1 h-3 w-3" />
           </Button>
         ),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {formatDistanceToNow(new Date(row.original.createdAt), {
-              addSuffix: true,
-            })}
+            {formatRelativeDate(row.original.createdAt, locale)}
           </span>
         ),
       },
       {
         id: "actions",
         enableSorting: false,
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => <span className="sr-only">{t("common.actions")}</span>,
         cell: ({ row, column }) => {
           const onDelete = (column.columnDef as ActionColumnDef).onDelete;
           return (
@@ -252,7 +252,7 @@ export function CandidatesTable({
                     className="h-8 w-8"
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
-                    aria-label="More candidate actions"
+                    aria-label={t("candidates.moreActions")}
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -270,7 +270,7 @@ export function CandidatesTable({
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Remove candidate
+                    {t("candidates.remove")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -280,7 +280,7 @@ export function CandidatesTable({
         onDelete: (candidate: Candidate) => setConfirmTarget(candidate),
       } as ColumnDef<Candidate>,
     ],
-    []
+    [locale, t]
   );
 
   const table = useReactTable({
@@ -341,7 +341,7 @@ export function CandidatesTable({
                   colSpan={columns.length}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No candidates found.
+                  {t("candidates.noneFound")}
                 </TableCell>
               </TableRow>
             )}
@@ -357,17 +357,18 @@ export function CandidatesTable({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove candidate?</DialogTitle>
+            <DialogTitle>{t("candidates.removeQuestion")}</DialogTitle>
             <DialogDescription>
-              This will permanently remove{" "}
+              {t("candidates.removeDescriptionPrefix")} {" "}
               <strong>{confirmTarget?.name}</strong>
               {confirmTarget?.posisi ? (
                 <>
                   {" "}
-                  for the <strong>{confirmTarget.posisi}</strong> position
+                  {t("candidates.removeDescriptionMiddle")} <strong>{confirmTarget.posisi}</strong>{" "}
+                  {t("common.position")}
                 </>
               ) : null}
-              . This action cannot be undone.
+              {confirmTarget?.posisi ? "" : "."} {t("candidates.removeDescriptionSuffix")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -376,7 +377,7 @@ export function CandidatesTable({
               onClick={() => setConfirmTarget(null)}
               disabled={isDeleting}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -388,10 +389,10 @@ export function CandidatesTable({
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Removing...
+                  {t("candidates.removing")}
                 </>
               ) : (
-                "Remove candidate"
+                t("candidates.remove")
               )}
             </Button>
           </DialogFooter>

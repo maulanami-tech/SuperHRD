@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
+import { I18nProvider } from "@/components/i18n-provider";
+import { getRequestLocale } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,16 +18,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getRequestLocale();
+
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang={locale} className="h-full antialiased">
       <body className="flex min-h-full flex-col">
-        {children}
-        <Toaster />
+        <I18nProvider locale={locale}>
+          {children}
+          <Toaster />
+        </I18nProvider>
       </body>
     </html>
   );

@@ -7,12 +7,14 @@ import { resendVerificationEmail } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/components/i18n-provider";
 
 type ResendVerificationFormProps = {
   compact?: boolean;
 };
 
 export function ResendVerificationForm({ compact = false }: ResendVerificationFormProps) {
+  const { locale, t } = useI18n();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -23,16 +25,16 @@ export function ResendVerificationForm({ compact = false }: ResendVerificationFo
     setSent(false);
 
     try {
-      const result = await resendVerificationEmail(email);
+      const result = await resendVerificationEmail(email, locale);
       if (result?.error) {
         toast.error(result.error);
         return;
       }
 
       setSent(true);
-      toast.success("Verification email sent");
+      toast.success(t("auth.verificationSent"));
     } catch {
-      toast.error("Could not send verification email. Please try again.");
+      toast.error(t("validation.sendVerificationFailed"));
     } finally {
       setLoading(false);
     }
@@ -41,7 +43,7 @@ export function ResendVerificationForm({ compact = false }: ResendVerificationFo
   return (
     <form onSubmit={handleSubmit} className="space-y-3 text-left">
       <div className="space-y-2">
-        <Label htmlFor="verification-email">Email</Label>
+        <Label htmlFor="verification-email">{t("common.email")}</Label>
         <Input
           id="verification-email"
           type="email"
@@ -60,18 +62,18 @@ export function ResendVerificationForm({ compact = false }: ResendVerificationFo
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Sending...
+            {t("auth.sending")}
           </>
         ) : (
           <>
             <MailCheck className="h-4 w-4" />
-            Send verification email
+            {t("auth.sendVerificationEmail")}
           </>
         )}
       </Button>
       {sent && (
         <p className={compact ? "text-center text-xs text-slate-500" : "text-sm text-slate-500"}>
-          If that email belongs to an unverified account, a new link has been sent.
+          {t("auth.resendSentHelp")}
         </p>
       )}
     </form>

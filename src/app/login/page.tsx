@@ -3,28 +3,31 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { loginSchema, type LoginInput } from "@/lib/validations";
+import { createLoginSchema, type LoginInput } from "@/lib/validations";
 import { AuthShell } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginUser } from "@/lib/actions";
+import { useI18n } from "@/components/i18n-provider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const schema = useMemo(() => createLoginSchema(locale), [locale]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       email: "",
       password: "",
@@ -36,12 +39,12 @@ export default function LoginPage() {
     try {
       const result = await loginUser(data.email, data.password);
       if (result?.error) {
-        toast.error("Invalid email or password");
+        toast.error(t("auth.invalidCredentials"));
       } else {
         router.push("/dashboard");
       }
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(t("auth.genericError"));
     } finally {
       setLoading(false);
     }
@@ -49,23 +52,23 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      description="Sign in to continue screening candidates with SuperHRD."
+      title={t("auth.welcomeBack")}
+      description={t("auth.signInDescription")}
       footer={
         <p className="mt-5 text-center text-sm text-slate-500">
-          Don&apos;t have an account?{" "}
+          {t("auth.noAccount")} {" "}
           <Link
             href="/register"
             className="font-medium text-primary transition-colors hover:text-primary/80"
           >
-            Register here
+            {t("auth.registerHere")}
           </Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("common.email")}</Label>
           <Input
             id="email"
             type="email"
@@ -78,12 +81,12 @@ export default function LoginPage() {
           )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t("auth.password")}</Label>
           <div className="relative">
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
+              placeholder={t("auth.enterPassword")}
               autoComplete="current-password"
               {...register("password")}
             />
@@ -113,10 +116,10 @@ export default function LoginPage() {
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Signing in...
+              {t("auth.signingIn")}
             </>
           ) : (
-            "Sign in"
+            t("auth.signIn")
           )}
         </Button>
       </form>

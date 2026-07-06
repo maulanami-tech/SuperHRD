@@ -1,6 +1,9 @@
+"use client";
+
 import { ClipboardList, FileUp, Inbox, ReceiptText, Users } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/components/i18n-provider";
 
 interface EmptyStateProps {
   title?: string;
@@ -9,15 +12,16 @@ interface EmptyStateProps {
   action?: {
     label: string;
     href: string;
-  };
+  } | null;
 }
 
 export function EmptyState({
-  title = "No candidates yet",
-  description = "Upload a CV to get started. AI will automatically screen and score each candidate.",
+  title,
+  description,
   icon = "users",
-  action = { label: "Upload CV", href: "/upload" },
+  action,
 }: EmptyStateProps) {
+  const { t } = useI18n();
   const icons = {
     upload: FileUp,
     users: Users,
@@ -26,19 +30,22 @@ export function EmptyState({
     inbox: Inbox,
   };
   const Icon = icons[icon];
+  const resolvedTitle = title ?? t("empty.candidatesTitle");
+  const resolvedDescription = description ?? t("empty.candidatesDescription");
+  const resolvedAction = action === undefined ? { label: t("common.uploadCv"), href: "/upload" } : action;
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
         <Icon className="h-8 w-8 text-primary" />
       </div>
-      <h3 className="mt-4 text-lg font-semibold text-foreground">{title}</h3>
+      <h3 className="mt-4 text-lg font-semibold text-foreground">{resolvedTitle}</h3>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        {description}
+        {resolvedDescription}
       </p>
-      {action && (
+      {resolvedAction && (
         <Button asChild className="mt-6">
-          <Link href={action.href}>{action.label}</Link>
+          <Link href={resolvedAction.href}>{resolvedAction.label}</Link>
         </Button>
       )}
     </div>

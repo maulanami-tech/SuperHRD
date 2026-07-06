@@ -4,7 +4,7 @@ import { signIn, signOut } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { registerSchema, type RegisterInput } from "@/lib/validations";
+import { createRegisterSchema, type RegisterInput } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { getClientIpFromHeaders } from "@/lib/ip-utils";
@@ -12,6 +12,12 @@ import {
   createEmailVerificationToken,
   sendEmailVerificationLink,
 } from "@/lib/email-verification";
+import { defaultLocale, normalizeLocale, type Locale } from "@/lib/i18n/config";
+import { translate } from "@/lib/i18n/messages";
+
+function t(locale: Locale, key: Parameters<typeof translate>[1]) {
+  return translate(locale, key);
+}
 
 export async function logout() {
   await signOut({ redirectTo: "/login" });
@@ -33,22 +39,23 @@ export async function loginUser(email: string, password: string) {
   }
 }
 
-export async function registerUser(data: RegisterInput) {
-  const parsed = registerSchema.safeParse(data);
+export async function registerUser(data: RegisterInput, requestedLocale: Locale = defaultLocale) {
+  const locale = normalizeLocale(requestedLocale);
+  const parsed = createRegisterSchema(locale).safeParse(data);
   if (!parsed.success) {
-    return { error: "Invalid data" };
+    return { error: t(locale, "validation.invalidData") };
   }
 
   const headersList = await headers();
   const ip = getClientIpFromHeaders(headersList);
   const rateLimitKey = `register:ip:${ip}`;
   const rateLimitCheck = await checkRateLimit(rateLimitKey, {
-    windowMs: 60 * 60 * 1000, // 1 hour
+    windowMs: 60 * 60 * 1000,
     maxRequests: 5,
   });
 
   if (!rateLimitCheck.allowed) {
-    return { error: "Too many registration attempts. Please try again later." };
+    return { error: t(locale, "validation.tooManyRegistration") };
   }
 
   const { name, email, password } = parsed.data;
@@ -56,7 +63,7 @@ export async function registerUser(data: RegisterInput) {
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
-    return { error: "Email already registered" };
+    return { error: t(locale, "validation.emailRegistered") };
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -86,6 +93,7 @@ export async function registerUser(data: RegisterInput) {
       email: normalizedEmail,
       name,
       token: verification.token,
+      locale,
     });
 
     return { success: true, pendingVerification: true };
@@ -97,14 +105,15 @@ export async function registerUser(data: RegisterInput) {
     }
 
     console.error("[AUTH] Registration email verification failed", error);
-    return { error: "Could not send verification email. Please try again later." };
+    return { error: t(locale, "validation.sendVerificationFailed") };
   }
 }
 
-export async function resendVerificationEmail(email: string) {
+export async function resendVerificationEmail(email: string, requestedLocale: Locale = defaultLocale) {
+  const locale = normalizeLocale(requestedLocale);
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail || !normalizedEmail.includes("@")) {
-    return { error: "Enter a valid email address." };
+    return { error: t(locale, "validation.validEmail") };
   }
 
   const headersList = await headers();
@@ -121,7 +130,7 @@ export async function resendVerificationEmail(email: string) {
   ]);
 
   if (!emailCheck.allowed || !ipCheck.allowed) {
-    return { error: "Too many verification email requests. Please try again later." };
+    return { error: t(locale, "validation.tooManyVerification") };
   }
 
   const user = await prisma.user.findUnique({
@@ -134,7 +143,7 @@ export async function resendVerificationEmail(email: string) {
   }
 
   if (user.emailVerified) {
-    return { error: "This email is already verified. Please sign in." };
+    return { error: t(locale, "validation.emailAlreadyVerified") };
   }
 
   const verification = createEmailVerificationToken();
@@ -159,11 +168,12 @@ export async function resendVerificationEmail(email: string) {
       email: user.email,
       name: user.name,
       token: verification.token,
+      locale,
     });
 
     return { success: true };
   } catch (error) {
     console.error("[AUTH] Resend verification email failed", error);
-    return { error: "Could not send verification email. Please try again later." };
+    return { error: t(locale, "validation.sendVerificationFailed") };
   }
 }

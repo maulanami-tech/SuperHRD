@@ -11,17 +11,19 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-provider";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Upload", href: "/upload", icon: FileUp },
-  { title: "Analytics", href: "/analytics", icon: BarChart3 },
-  { title: "Top Up", href: "/topup", icon: Wallet },
-  { title: "History", href: "/credit-history", icon: History },
+const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutDashboard }> = [
+  { titleKey: "common.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { titleKey: "nav.upload", href: "/upload", icon: FileUp },
+  { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
+  { titleKey: "common.topUp", href: "/topup", icon: Wallet },
+  { titleKey: "common.history", href: "/credit-history", icon: History },
 ];
 
-const adminNavItems = [
-  { title: "Approve", href: "/admin/topup-requests", icon: ShieldCheck },
+const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof ShieldCheck }> = [
+  { titleKey: "nav.approve", href: "/admin/topup-requests", icon: ShieldCheck },
 ];
 
 interface MobileNavProps {
@@ -30,6 +32,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isAdmin }: MobileNavProps) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const items = isAdmin ? [...navItems, ...adminNavItems] : navItems;
 
   return (
@@ -48,10 +51,11 @@ export function MobileNav({ isAdmin }: MobileNavProps) {
           const isActive =
             pathname === item.href ||
             pathname.startsWith(item.href + "/");
+          const title = t(item.titleKey);
 
           return (
             <Link
-              key={item.href + item.title}
+              key={item.href + title}
               href={item.href}
               className={cn(
                 "relative flex min-h-11 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium transition-all duration-200",
@@ -61,7 +65,7 @@ export function MobileNav({ isAdmin }: MobileNavProps) {
               )}
             >
               <item.icon className="h-5 w-5" />
-              <span className="max-w-full truncate">{item.title}</span>
+              <span className="max-w-full truncate">{title}</span>
               {isActive && (
                 <div className="absolute -bottom-0.5 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-violet-600" />
               )}

@@ -30,6 +30,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-provider";
+import { formatDateTime, formatIdr } from "@/lib/i18n/format";
 
 interface CreditBalance {
   creditBalance: number;
@@ -62,7 +64,7 @@ const BUNDLES = [
     credits: 20,
     bonus: "0%",
     label: "Starter",
-    description: "Light screening needs",
+    descriptionKey: "topup.starterDesc" as const,
     icon: Zap,
   },
   {
@@ -70,7 +72,7 @@ const BUNDLES = [
     credits: 110,
     bonus: "+10%",
     label: "Basic",
-    description: "Best for weekly reviews",
+    descriptionKey: "topup.basicDesc" as const,
     popular: true,
     icon: Sparkles,
   },
@@ -79,7 +81,7 @@ const BUNDLES = [
     credits: 350,
     bonus: "+17%",
     label: "Pro",
-    description: "For active hiring teams",
+    descriptionKey: "topup.proDesc" as const,
     icon: Sparkles,
   },
   {
@@ -87,20 +89,16 @@ const BUNDLES = [
     credits: 1250,
     bonus: "+25%",
     label: "Enterprise",
-    description: "Highest credit efficiency",
+    descriptionKey: "topup.enterpriseDesc" as const,
     icon: Sparkles,
   },
 ];
 
-function formatIdr(value: number) {
-  return `Rp ${value.toLocaleString("id-ID")}`;
-}
-
 function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
   if (!payment) {
     return {
-      title: "No active payment link",
-      description: "Choose a bundle, then create a Midtrans Payment Link.",
+      titleKey: "topup.noActivePayment" as const,
+      descriptionKey: "topup.noActivePaymentDesc" as const,
       className: "border-slate-200 bg-slate-50 text-slate-700",
       icon: ReceiptText,
     };
@@ -108,8 +106,8 @@ function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
 
   if (payment.status === "approved") {
     return {
-      title: "Payment successful",
-      description: "Credits have been added to your account.",
+      titleKey: "topup.paymentSuccessful" as const,
+      descriptionKey: "topup.paymentSuccessfulDesc" as const,
       className: "border-emerald-200 bg-emerald-50 text-emerald-800",
       icon: CheckCircle2,
     };
@@ -117,8 +115,8 @@ function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
 
   if (payment.status === "expired") {
     return {
-      title: "Payment expired",
-      description: "Create a new payment link to continue.",
+      titleKey: "topup.paymentExpired" as const,
+      descriptionKey: "topup.paymentExpiredDesc" as const,
       className: "border-amber-200 bg-amber-50 text-amber-800",
       icon: Clock3,
     };
@@ -126,16 +124,16 @@ function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
 
   if (payment.status === "rejected") {
     return {
-      title: "Payment failed",
-      description: "The payment was rejected by the provider.",
+      titleKey: "topup.paymentFailed" as const,
+      descriptionKey: "topup.paymentFailedDesc" as const,
       className: "border-red-200 bg-red-50 text-red-800",
       icon: ReceiptText,
     };
   }
 
   return {
-    title: "Waiting for payment",
-    description: "Open the payment link, complete checkout, then status will sync automatically.",
+    titleKey: "topup.waitingForPayment" as const,
+    descriptionKey: "topup.waitingForPaymentDesc" as const,
     className: "border-blue-200 bg-blue-50 text-blue-800",
     icon: Clock3,
   };
@@ -143,6 +141,7 @@ function getPaymentStatusCopy(payment: PaymentLinkTopup | null) {
 
 export default function TopupPage() {
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedBundle, setSelectedBundle] = useState<number | null>(null);
@@ -161,15 +160,15 @@ export default function TopupPage() {
   const fetchBalance = useCallback(async () => {
     try {
       const res = await fetch("/api/credit/balance");
-      if (!res.ok) throw new Error("Failed to load balance");
+      if (!res.ok) throw new Error(t("topup.loadBalanceFailed"));
       const data: CreditBalance = await res.json();
       setBalance(data);
     } catch {
-      toast.error("Failed to load balance");
+      toast.error(t("topup.loadBalanceFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadLatestPendingPayment = useCallback(async () => {
     try {
@@ -202,18 +201,17 @@ export default function TopupPage() {
         expiresAt: current.expiresAt,
       });
     } catch {
-      // keep page usable even if pending request restore fails
+      // Keep page usable even if pending request restore fails.
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard data-fetching pattern in mount effect
     void Promise.all([fetchBalance(), loadLatestPendingPayment()]);
   }, [fetchBalance, loadLatestPendingPayment]);
 
   async function handleSubmit() {
     if (!selectedBundle) {
-      toast.error("Please select a bundle");
+      toast.error(t("topup.selectBundle"));
       return;
     }
 
@@ -230,14 +228,14 @@ export default function TopupPage() {
 
       const data: PaymentLinkTopup & { error?: string } = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to create payment link");
+        throw new Error(data.error || t("topup.createPaymentLinkFailed"));
       }
 
       setPayment(data);
-      toast.success("Payment link created. Open it to complete the payment.");
+      toast.success(t("topup.paymentLinkCreated"));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to create payment"
+        error instanceof Error ? error.message : t("topup.createPaymentFailed")
       );
     } finally {
       setSubmitting(false);
@@ -258,17 +256,17 @@ export default function TopupPage() {
       } = await syncRes.json();
 
       if (!syncRes.ok) {
-        throw new Error(syncData.error || "Failed to sync payment status");
+        throw new Error(syncData.error || t("topup.syncFailed"));
       }
 
       const res = await fetch("/api/topup/requests?status=all&limit=20");
-      if (!res.ok) throw new Error("Failed to load payment status");
+      if (!res.ok) throw new Error(t("topup.loadStatusFailed"));
 
       const data: { requests?: TopupRequest[] } = await res.json();
       const current = data.requests?.find(
         (request) => request.id === payment.topupRequestId,
       );
-      if (!current) throw new Error("Payment request not found");
+      if (!current) throw new Error(t("topup.requestNotFound"));
 
       setPayment((prev) =>
         prev
@@ -281,27 +279,27 @@ export default function TopupPage() {
       );
 
       if (current.status === "approved") {
-        if (!silent) toast.success("Payment approved. Credits have been added.");
+        if (!silent) toast.success(t("topup.approvedToast"));
         await fetchBalance();
         setRedirecting(true);
         window.setTimeout(() => {
           router.push("/dashboard");
         }, 1200);
       } else if (current.status === "expired") {
-        toast.error("Payment expired. Please create a new payment link.");
+        toast.error(t("topup.expiredToast"));
       } else if (current.status === "rejected") {
-        toast.error("Payment was rejected by provider.");
+        toast.error(t("topup.rejectedToast"));
       } else {
-        if (!silent) toast.info("Payment is still pending.");
+        if (!silent) toast.info(t("topup.pendingToast"));
       }
     } catch (error) {
       if (!silent) {
-        toast.error(error instanceof Error ? error.message : "Failed to check status");
+        toast.error(error instanceof Error ? error.message : t("topup.checkStatusFailed"));
       }
     } finally {
       setCheckingStatus(false);
     }
-  }, [fetchBalance, payment, router]);
+  }, [fetchBalance, payment, router, t]);
 
   useEffect(() => {
     if (!payment || payment.status !== "pending") {
@@ -318,14 +316,14 @@ export default function TopupPage() {
   return (
     <>
       <Header
-        title="Credit wallet"
-        description="Top up paid credits for AI screening"
-        breadcrumb={[{ label: "Dashboard", href: "/dashboard" }, { label: "Top Up" }]}
+        title={t("topup.title")}
+        description={t("topup.description")}
+        breadcrumb={[{ label: t("common.dashboard"), href: "/dashboard" }, { label: t("common.topUp") }]}
       >
         <Button asChild variant="outline" size="sm" className="hidden border-slate-200 bg-white hover:bg-slate-50 sm:inline-flex">
           <Link href="/credit-history">
             <ReceiptText className="mr-2 h-4 w-4" />
-            Credit history
+            {t("topup.creditHistory")}
           </Link>
         </Button>
       </Header>
@@ -348,38 +346,38 @@ export default function TopupPage() {
                 <div className="p-5 sm:p-6 lg:p-7">
                   <div className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm">
                     <Wallet className="h-4 w-4" />
-                    Credit wallet
+                    {t("topup.title")}
                   </div>
                   <h1 className="mt-4 max-w-3xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                    Keep screening capacity ready before the hiring queue grows.
+                    {t("topup.heroTitle")}
                   </h1>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-                    Buy paid credits through Midtrans Payment Link. Your balance updates after the provider confirms settlement.
+                    {t("topup.heroDescription")}
                   </p>
 
                   <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                      <p className="text-xs font-medium text-slate-500 sm:text-sm">Paid credits</p>
+                      <p className="text-xs font-medium text-slate-500 sm:text-sm">{t("topup.paidCredits")}</p>
                       <p className="mt-2 text-2xl font-semibold text-slate-950">{balance?.creditBalance ?? 0}</p>
                     </div>
                     <div className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm">
-                      <p className="text-xs font-medium text-slate-500 sm:text-sm">Free quota today</p>
+                      <p className="text-xs font-medium text-slate-500 sm:text-sm">{t("topup.freeQuotaToday")}</p>
                       <p className="mt-2 text-2xl font-semibold text-emerald-700">{balance?.dailyQuotaRemaining ?? 0}/5</p>
                     </div>
                     <div className="col-span-2 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:col-span-1">
-                      <p className="text-xs font-medium text-slate-500 sm:text-sm">Checkout</p>
+                      <p className="text-xs font-medium text-slate-500 sm:text-sm">{t("topup.checkout")}</p>
                       <p className="mt-2 text-sm font-semibold text-blue-700">Midtrans Link</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="hidden border-t border-amber-100 bg-white/75 p-5 sm:block lg:border-l lg:border-t-0 lg:p-6">
-                  <p className="text-sm font-semibold text-slate-950">Payment safeguards</p>
+                  <p className="text-sm font-semibold text-slate-950">{t("topup.paymentSafeguards")}</p>
                   <div className="mt-4 space-y-3">
                     {[
-                      { icon: ShieldCheck, title: "Hosted checkout", desc: "Payment is completed on Midtrans." },
-                      { icon: RefreshCw, title: "Status sync", desc: "Pending links are restored and checked." },
-                      { icon: BadgeCheck, title: "Credit ledger", desc: "Every balance change is recorded." },
+                      { icon: ShieldCheck, title: t("topup.hostedCheckout"), desc: t("topup.hostedCheckoutDesc") },
+                      { icon: RefreshCw, title: t("topup.statusSync"), desc: t("topup.statusSyncDesc") },
+                      { icon: BadgeCheck, title: t("topup.creditLedger"), desc: t("topup.creditLedgerDesc") },
                     ].map((item) => {
                       const Icon = item.icon;
                       return (
@@ -431,26 +429,26 @@ export default function TopupPage() {
                       </span>
                       {bundle.popular && (
                         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-600/15">
-                          Popular
+                          {t("topup.popular")}
                         </span>
                       )}
                     </div>
                     <div className="mt-4">
                       <p className="text-sm font-medium text-slate-500">{bundle.label}</p>
                       <p className="mt-1 text-2xl font-semibold text-slate-950">{bundle.credits}</p>
-                      <p className="text-sm text-slate-500">credits</p>
+                      <p className="text-sm text-slate-500">{t("common.credits")}</p>
                     </div>
                     <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4">
                       <div>
-                        <p className="text-sm font-semibold text-slate-950">{formatIdr(bundle.amountIdr)}</p>
-                        <p className="mt-1 text-xs text-slate-500">{formatIdr(pricePerCredit)}/credit</p>
+                        <p className="text-sm font-semibold text-slate-950">{formatIdr(bundle.amountIdr, locale)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatIdr(pricePerCredit, locale)}/{t("common.credit")}</p>
                       </div>
                       <div className="text-right">
                         <p className={cn("text-sm font-medium", bundle.bonus === "0%" ? "text-slate-400" : "text-emerald-700")}>{bundle.bonus}</p>
-                        <p className="mt-1 text-xs text-slate-500">bonus</p>
+                        <p className="mt-1 text-xs text-slate-500">{t("common.bonus")}</p>
                       </div>
                     </div>
-                    <p className="mt-3 text-xs text-slate-500">{bundle.description}</p>
+                    <p className="mt-3 text-xs text-slate-500">{t(bundle.descriptionKey)}</p>
                   </button>
                 );
               })}
@@ -460,13 +458,11 @@ export default function TopupPage() {
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle>Checkout summary</CardTitle>
-                    <CardDescription>
-                      Create one Midtrans Payment Link, complete payment, then sync the status here.
-                    </CardDescription>
+                    <CardTitle>{t("topup.checkoutSummary")}</CardTitle>
+                    <CardDescription>{t("topup.checkoutSummaryDesc")}</CardDescription>
                   </div>
                   <Button asChild variant="outline" size="sm" className="border-slate-200 sm:hidden">
-                    <Link href="/credit-history">Credit history</Link>
+                    <Link href="/credit-history">{t("topup.creditHistory")}</Link>
                   </Button>
                 </div>
               </CardHeader>
@@ -477,18 +473,18 @@ export default function TopupPage() {
                       <CreditCard className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-950">Selected bundle</p>
-                      <p className="text-sm text-slate-500">{selectedBundleInfo ? selectedBundleInfo.label : "No bundle selected"}</p>
+                      <p className="text-sm font-semibold text-slate-950">{t("topup.selectedBundle")}</p>
+                      <p className="text-sm text-slate-500">{selectedBundleInfo ? selectedBundleInfo.label : t("topup.noBundleSelected")}</p>
                     </div>
                   </div>
 
                   <div className="mt-5 rounded-lg bg-white p-4 ring-1 ring-slate-200">
-                    <p className="text-sm font-medium text-slate-500">Payment amount</p>
+                    <p className="text-sm font-medium text-slate-500">{t("topup.paymentAmount")}</p>
                     <p className="mt-2 text-2xl font-semibold text-slate-950">
-                      {selectedBundleInfo ? formatIdr(selectedBundleInfo.amountIdr) : "-"}
+                      {selectedBundleInfo ? formatIdr(selectedBundleInfo.amountIdr, locale) : "-"}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {selectedBundleInfo ? `${selectedBundleInfo.credits} credits will be added after approval.` : "Choose a bundle above to continue."}
+                      {selectedBundleInfo ? t("topup.creditsAddedAfterApproval", { count: selectedBundleInfo.credits }) : t("topup.chooseBundle")}
                     </p>
                   </div>
 
@@ -500,12 +496,12 @@ export default function TopupPage() {
                     {submitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating payment link...
+                        {t("topup.creatingPaymentLink")}
                       </>
                     ) : (
                       <>
                         <QrCode className="mr-2 h-4 w-4" />
-                        Create Payment Link
+                        {t("topup.createPaymentLink")}
                       </>
                     )}
                   </Button>
@@ -518,16 +514,16 @@ export default function TopupPage() {
                         <StatusIcon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold">{statusCopy.title}</p>
-                        <p className="mt-1 text-sm opacity-90">{statusCopy.description}</p>
+                        <p className="text-sm font-semibold">{t(statusCopy.titleKey)}</p>
+                        <p className="mt-1 text-sm opacity-90">{t(statusCopy.descriptionKey)}</p>
                       </div>
                     </div>
                     {payment && (
                       <div className="mt-4 grid gap-2 rounded-lg bg-white/70 p-3 text-xs text-slate-600 ring-1 ring-current/10 sm:grid-cols-2">
-                        <p><span className="font-medium text-slate-900">Order:</span> {payment.orderId}</p>
-                        <p><span className="font-medium text-slate-900">Status:</span> {payment.status}</p>
-                        <p><span className="font-medium text-slate-900">Provider:</span> {payment.providerStatus ?? "pending"}</p>
-                        <p><span className="font-medium text-slate-900">Expires:</span> {new Date(payment.expiresAt).toLocaleString("id-ID")}</p>
+                        <p><span className="font-medium text-slate-900">{t("topup.order")}:</span> {payment.orderId}</p>
+                        <p><span className="font-medium text-slate-900">{t("common.status")}:</span> {t(`statuses.${payment.status}`)}</p>
+                        <p><span className="font-medium text-slate-900">{t("topup.provider")}:</span> {payment.providerStatus ?? t("statuses.pending")}</p>
+                        <p><span className="font-medium text-slate-900">{t("topup.expires")}:</span> {formatDateTime(payment.expiresAt, locale)}</p>
                       </div>
                     )}
                   </div>
@@ -536,8 +532,8 @@ export default function TopupPage() {
                     <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
                       <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
                       <div>
-                        <p className="font-medium">Payment successful</p>
-                        <p className="mt-1 text-emerald-700">Credits have been added. Redirecting to dashboard...</p>
+                        <p className="font-medium">{t("topup.paymentSuccessful")}</p>
+                        <p className="mt-1 text-emerald-700">{t("topup.redirecting")}</p>
                       </div>
                     </div>
                   )}
@@ -563,7 +559,7 @@ export default function TopupPage() {
                         ) : (
                           <RefreshCw className="mr-2 h-4 w-4" />
                         )}
-                        {redirecting ? "Payment Successful" : "Check Status"}
+                        {redirecting ? t("topup.paymentSuccessfulButton") : t("topup.checkStatus")}
                       </Button>
                       {(payment.paymentUrl ?? payment.qrCodeUrl) && (
                         <Button variant="outline" asChild className="border-slate-200 bg-white hover:bg-slate-50">
@@ -573,7 +569,7 @@ export default function TopupPage() {
                             rel="noopener noreferrer"
                           >
                             <ExternalLink className="mr-2 h-4 w-4" />
-                            Open Payment Link
+                            {t("topup.openPaymentLink")}
                           </a>
                         </Button>
                       )}
@@ -581,12 +577,12 @@ export default function TopupPage() {
                   )}
 
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-950">What happens next</p>
+                    <p className="text-sm font-semibold text-slate-950">{t("topup.whatNext")}</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
                       {[
-                        ["1", "Create link"],
-                        ["2", "Pay on Midtrans"],
-                        ["3", "Credits added"],
+                        ["1", t("topup.createLink")],
+                        ["2", t("topup.payOnMidtrans")],
+                        ["3", t("topup.creditsAdded")],
                       ].map(([step, label]) => (
                         <div key={step} className="flex items-center gap-2 rounded-md bg-slate-50 p-2 text-sm text-slate-600">
                           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-900 ring-1 ring-slate-200">{step}</span>

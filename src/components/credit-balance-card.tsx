@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Coins, Gauge, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/components/i18n-provider";
 
 interface CreditBalanceCardProps {
   balance: number;
@@ -13,6 +16,8 @@ export function CreditBalanceCard({
   dailyQuotaRemaining,
   totalPurchased,
 }: CreditBalanceCardProps) {
+  const { t } = useI18n();
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-start gap-3">
@@ -21,10 +26,10 @@ export function CreditBalanceCard({
         </span>
         <div className="min-w-0">
           <h2 className="text-sm font-semibold leading-5 text-slate-950">
-            Screening capacity
+            {t("credits.capacity")}
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Credits and daily quota available for screening.
+            {t("credits.capacityDescription")}
           </p>
         </div>
       </div>
@@ -33,7 +38,7 @@ export function CreditBalanceCard({
         <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
             <Gauge className="h-3.5 w-3.5" />
-            Paid credits
+            {t("topup.paidCredits")}
           </div>
           <div className="mt-1 text-2xl font-semibold text-slate-950">
             {balance}
@@ -42,7 +47,7 @@ export function CreditBalanceCard({
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-emerald-700">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Free quota
+            {t("credits.freeQuota")}
           </div>
           <div className="mt-1 text-2xl font-semibold text-emerald-900">
             {dailyQuotaRemaining}/5
@@ -52,7 +57,7 @@ export function CreditBalanceCard({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Total purchased
+                {t("credits.totalPurchased")}
               </div>
               <div className="mt-1 text-2xl font-semibold text-slate-950">
                 {typeof totalPurchased === "number" ? totalPurchased : 0}
@@ -60,7 +65,7 @@ export function CreditBalanceCard({
             </div>
             <Button asChild variant="outline" size="sm" className="shrink-0 border-slate-300">
               <Link href="/topup">
-                Top up
+                {t("common.topUp")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

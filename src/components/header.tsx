@@ -2,8 +2,10 @@
 
 import { Menu } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useI18n } from "@/components/i18n-provider";
 
 interface HeaderProps {
   title: string;
@@ -21,6 +23,7 @@ export function Header({
   children,
 }: HeaderProps) {
   const { toggleSidebar } = useSidebar();
+  const { t } = useI18n();
   const items = breadcrumb ?? breadcrumbItems;
 
   return (
@@ -33,7 +36,7 @@ export function Header({
           onClick={toggleSidebar}
         >
           <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle menu</span>
+          <span className="sr-only">{t("common.navigation")}</span>
         </Button>
 
         <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
@@ -57,7 +60,10 @@ export function Header({
               </p>
             )}
           </div>
-          {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+          <div className="flex shrink-0 items-center gap-2">
+            {children}
+            <LanguageSwitcher />
+          </div>
         </div>
       </div>
       <div className="h-px bg-gradient-to-r from-blue-600/70 via-slate-200 to-emerald-500/60" />
