@@ -25,6 +25,36 @@ export function createRegisterSchema(locale: Locale = defaultLocale) {
   });
 }
 
+export function createForgotPasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    email: z.email(tv(locale, "validation.validEmail")),
+  });
+}
+
+export function createResetPasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    password: z.string().min(6, tv(locale, "validation.passwordMin")),
+    confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: tv(locale, "validation.passwordsMismatch"),
+    path: ["confirmPassword"],
+  });
+}
+
+export function createChangePasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    currentPassword: z.string().min(1, tv(locale, "validation.currentPasswordRequired")),
+    newPassword: z.string().min(6, tv(locale, "validation.passwordMin")),
+    confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+  }).refine((data) => data.newPassword === data.confirmPassword, {
+    message: tv(locale, "validation.passwordsMismatch"),
+    path: ["confirmPassword"],
+  }).refine((data) => data.newPassword !== data.currentPassword, {
+    message: tv(locale, "validation.newPasswordSameAsOld"),
+    path: ["newPassword"],
+  });
+}
+
 export function createUploadSchema(locale: Locale = defaultLocale) {
   return z.object({
     name: z.string().min(1, tv(locale, "validation.candidateNameRequired")).max(200, tv(locale, "validation.nameTooLong")),
@@ -59,6 +89,9 @@ export function createFileSchema(locale: Locale = defaultLocale) {
 
 export const loginSchema = createLoginSchema();
 export const registerSchema = createRegisterSchema();
+export const forgotPasswordSchema = createForgotPasswordSchema();
+export const resetPasswordSchema = createResetPasswordSchema();
+export const changePasswordSchema = createChangePasswordSchema();
 export const uploadSchema = createUploadSchema();
 export const batchUploadSchema = createBatchUploadSchema();
 export const fileSchema = createFileSchema();
@@ -83,6 +116,9 @@ export const n8nCallbackSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
 export type BatchUploadInput = z.infer<typeof batchUploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;

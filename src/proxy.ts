@@ -79,6 +79,8 @@ export default function proxy(req: NextRequest) {
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/verify-email" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {

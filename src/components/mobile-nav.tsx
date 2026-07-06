@@ -8,6 +8,7 @@ import {
   History,
   BarChart3,
   Wallet,
+  Settings,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutD
   { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
   { titleKey: "common.topUp", href: "/topup", icon: Wallet },
   { titleKey: "common.history", href: "/credit-history", icon: History },
+  { titleKey: "settings.title", href: "/settings", icon: Settings },
 ];
 
 const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof ShieldCheck }> = [

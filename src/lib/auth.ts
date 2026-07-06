@@ -81,7 +81,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.isAdmin = user.isAdmin ?? false;
+        token.pwdIat = Date.now();
+        return token;
       }
+
+      // Invalidate sessions issued before the last password change.
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { passwordChangedAt: true },
+        });
+
+        if (!dbUser) return null;
+
+        const pwdIat = typeof token.pwdIat === "number" ? token.pwdIat : 0;
+        if (dbUser.passwordChangedAt && dbUser.passwordChangedAt.getTime() > pwdIat) {
+          console.info(`[AUTH] Session invalidated after password change: userId=${token.id}`);
+          return null;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
