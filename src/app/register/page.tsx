@@ -34,6 +34,7 @@ export default function RegisterPage() {
       email: "",
       password: "",
       confirmPassword: "",
+      promoCode: "",
     },
   });
 
@@ -172,6 +173,22 @@ export default function RegisterPage() {
               <p className="text-sm text-destructive">
                 {errors.confirmPassword.message}
               </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="promoCode">{t("auth.promoCode")}</Label>
+            <Input
+              id="promoCode"
+              type="text"
+              placeholder={t("auth.promoCodePlaceholder")}
+              autoComplete="off"
+              className="uppercase placeholder:normal-case"
+              {...register("promoCode")}
+            />
+            {errors.promoCode ? (
+              <p className="text-sm text-destructive">{errors.promoCode.message}</p>
+            ) : (
+              <p className="text-xs text-slate-500">{t("auth.promoCodeHint")}</p>
             )}
           </div>
           <Button

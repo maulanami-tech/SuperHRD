@@ -19,9 +19,28 @@ export function createRegisterSchema(locale: Locale = defaultLocale) {
     email: z.email(),
     password: z.string().min(6, tv(locale, "validation.passwordMin")),
     confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+    promoCode: z.string()
+      .trim()
+      .max(32, tv(locale, "validation.promoCodeFormat"))
+      .regex(/^[A-Za-z0-9_-]*$/, tv(locale, "validation.promoCodeFormat"))
+      .optional()
+      .or(z.literal("")),
   }).refine((data) => data.password === data.confirmPassword, {
     message: tv(locale, "validation.passwordsMismatch"),
     path: ["confirmPassword"],
+  });
+}
+
+export function createPromoCodeSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    code: z.string()
+      .trim()
+      .min(3, tv(locale, "validation.promoCodeFormat"))
+      .max(32, tv(locale, "validation.promoCodeFormat"))
+      .regex(/^[A-Za-z0-9_-]+$/, tv(locale, "validation.promoCodeFormat")),
+    creditAmount: z.number().int().min(1).max(100000),
+    maxRedemptions: z.number().int().min(1).max(1000000).nullable().optional(),
+    expiresAt: z.iso.datetime().nullable().optional(),
   });
 }
 
@@ -90,6 +109,7 @@ export function createFileSchema(locale: Locale = defaultLocale) {
 export const loginSchema = createLoginSchema();
 export const registerSchema = createRegisterSchema();
 export const forgotPasswordSchema = createForgotPasswordSchema();
+export const promoCodeSchema = createPromoCodeSchema();
 export const resetPasswordSchema = createResetPasswordSchema();
 export const changePasswordSchema = createChangePasswordSchema();
 export const uploadSchema = createUploadSchema();
@@ -117,6 +137,7 @@ export const n8nCallbackSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type PromoCodeInput = z.infer<typeof promoCodeSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;

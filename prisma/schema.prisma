@@ -22,6 +22,7 @@ model User {
   candidates              Candidate[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
+  promoRedemption         PromoRedemption?
   transactions            Transaction[]
   topupRequests           TopupRequest[]
   uploadBatches           UploadBatch[]
@@ -114,6 +115,40 @@ enum TransactionType {
   admin_adjustment
   daily_quota
   refund
+  promo_bonus
+}
+
+model PromoCode {
+  id             String            @id @default(cuid())
+  code           String            @unique
+  creditAmount   Int
+  maxRedemptions Int?
+  expiresAt      DateTime?
+  active         Boolean           @default(true)
+  createdBy      String
+  createdAt      DateTime          @default(now())
+  redemptions    PromoRedemption[]
+
+  @@index([active, expiresAt])
+}
+
+enum PromoRedemptionStatus {
+  pending
+  claimed
+}
+
+model PromoRedemption {
+  id           String                @id @default(cuid())
+  codeId       String
+  code         PromoCode             @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  userId       String                @unique
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditAmount Int
+  status       PromoRedemptionStatus @default(pending)
+  createdAt    DateTime              @default(now())
+  claimedAt    DateTime?
+
+  @@index([codeId, status])
 }
 
 model Transaction {

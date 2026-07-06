@@ -24,6 +24,7 @@ import {
   hashPasswordResetToken,
   sendPasswordResetLink,
 } from "@/lib/password-reset";
+import { findRedeemablePromoCode } from "@/lib/promo";
 import { defaultLocale, normalizeLocale, type Locale } from "@/lib/i18n/config";
 import { translate } from "@/lib/i18n/messages";
 
@@ -70,12 +71,23 @@ export async function registerUser(data: RegisterInput, requestedLocale: Locale 
     return { error: t(locale, "validation.tooManyRegistration") };
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, promoCode } = parsed.data;
   const normalizedEmail = email.toLowerCase();
+  const normalizedPromoCode = promoCode?.trim().toUpperCase() || null;
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
     return { error: t(locale, "validation.emailRegistered") };
+  }
+
+  // Validate the promo code up front so the user gets a clear error before
+  // the account is created. The authoritative check happens again inside the
+  // registration transaction.
+  if (normalizedPromoCode) {
+    const promo = await findRedeemablePromoCode(normalizedPromoCode);
+    if (!promo) {
+      return { error: t(locale, "validation.invalidPromoCode") };
+    }
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -95,6 +107,21 @@ export async function registerUser(data: RegisterInput, requestedLocale: Locale 
           expiresAt: verification.expiresAt,
         },
       });
+
+      if (normalizedPromoCode) {
+        const promo = await findRedeemablePromoCode(normalizedPromoCode, tx);
+        // If the code became unavailable mid-registration, register without it
+        // rather than failing the whole signup.
+        if (promo) {
+          await tx.promoRedemption.create({
+            data: {
+              codeId: promo.id,
+              userId: created.id,
+              creditAmount: promo.creditAmount,
+            },
+          });
+        }
+      }
 
       return created;
     });

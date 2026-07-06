@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileUp,
+  Gauge,
   History,
   BarChart3,
   Wallet,
   Settings,
-  ShieldCheck,
+  TicketPercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-provider";
@@ -24,8 +25,9 @@ const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutD
   { titleKey: "settings.title", href: "/settings", icon: Settings },
 ];
 
-const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof ShieldCheck }> = [
-  { titleKey: "nav.approve", href: "/admin/topup-requests", icon: ShieldCheck },
+const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof Gauge }> = [
+  { titleKey: "adminOverview.title", href: "/admin/overview", icon: Gauge },
+  { titleKey: "adminPromo.title", href: "/admin/promo-codes", icon: TicketPercent },
 ];
 
 interface MobileNavProps {
