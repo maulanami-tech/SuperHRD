@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileUp,
+  Gauge,
   LogOut,
   BarChart3,
   Wallet,
   History,
   Settings,
-  ShieldCheck,
+  TicketPercent,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,8 +42,9 @@ const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutD
   { titleKey: "settings.title", href: "/settings", icon: Settings },
 ];
 
-const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof ShieldCheck }> = [
-  { titleKey: "nav.topupRequests", href: "/admin/topup-requests", icon: ShieldCheck },
+const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof Gauge }> = [
+  { titleKey: "adminOverview.title", href: "/admin/overview", icon: Gauge },
+  { titleKey: "adminPromo.title", href: "/admin/promo-codes", icon: TicketPercent },
 ];
 
 interface AppSidebarProps {

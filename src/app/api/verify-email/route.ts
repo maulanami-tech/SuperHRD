@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashEmailVerificationToken } from "@/lib/email-verification";
+import { claimPromoRedemption } from "@/lib/promo";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -62,6 +63,13 @@ export async function GET(req: NextRequest) {
       },
       data: { usedAt: now },
     });
+
+    const promoClaim = await claimPromoRedemption(verificationToken.userId, tx);
+    if (promoClaim) {
+      console.info(
+        `[PROMO] Claimed ${promoClaim.creditAmount} credits from code ${promoClaim.code} for userId=${verificationToken.userId}`
+      );
+    }
 
     return true;
   });
