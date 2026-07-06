@@ -17,15 +17,29 @@ model User {
   dailyQuotaUsed          Int                      @default(0)
   lastQuotaDate           String                   @default("")
   isAdmin                 Boolean                  @default(false)
+  passwordChangedAt       DateTime?
   createdAt               DateTime                 @default(now())
   candidates              Candidate[]
   emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   transactions            Transaction[]
   topupRequests           TopupRequest[]
   uploadBatches           UploadBatch[]
 }
 
 model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)

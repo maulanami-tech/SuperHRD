@@ -2,30 +2,33 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { registerSchema, type RegisterInput } from "@/lib/validations";
+import { createRegisterSchema, type RegisterInput } from "@/lib/validations";
 import { AuthShell } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerUser } from "@/lib/actions";
 import { ResendVerificationForm } from "@/components/resend-verification-form";
+import { useI18n } from "@/components/i18n-provider";
 
 export default function RegisterPage() {
+  const { locale, t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const schema = useMemo(() => createRegisterSchema(locale), [locale]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       email: "",
@@ -37,15 +40,15 @@ export default function RegisterPage() {
   async function onSubmit(data: RegisterInput) {
     setLoading(true);
     try {
-      const result = await registerUser(data);
+      const result = await registerUser(data, locale);
       if (result?.error) {
         toast.error(result.error);
       } else {
         setPendingEmail(data.email);
-        toast.success("Verification email sent");
+        toast.success(t("auth.verificationSent"));
       }
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(t("auth.genericError"));
     } finally {
       setLoading(false);
     }
@@ -53,17 +56,17 @@ export default function RegisterPage() {
 
   return (
     <AuthShell
-      title={pendingEmail ? "Check your email" : "Create your account"}
+      title={pendingEmail ? t("auth.checkEmail") : t("auth.createAccount")}
       description={
         pendingEmail
-          ? "Open the verification link we sent before signing in to SuperHRD."
-          : "Start a SuperHRD workspace for CV screening, scoring, and shortlist review."
+          ? t("auth.checkEmailDescription")
+          : t("auth.registerDescription")
       }
       footer={
         <p className="mt-5 text-center text-sm text-slate-500">
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount")} {" "}
           <Link href="/login" className="font-medium text-primary transition-colors hover:text-primary/80">
-            Sign in
+            {t("auth.signInHere")}
           </Link>
         </p>
       }
@@ -75,22 +78,22 @@ export default function RegisterPage() {
           </div>
           <div className="space-y-2">
             <p className="text-sm text-slate-600">
-              We sent a verification link to{" "}
+              {t("auth.sentVerificationTo")} {" "}
               <span className="font-medium text-slate-900">{pendingEmail}</span>.
             </p>
             <p className="text-sm text-slate-500">
-              The link expires in 30 minutes.
+              {t("auth.linkExpires")}
             </p>
           </div>
           <ResendVerificationForm compact />
           <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Back to sign in</Link>
+            <Link href="/login">{t("auth.backToSignIn")}</Link>
           </Button>
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t("auth.name")}</Label>
             <Input
               id="name"
               type="text"
@@ -103,7 +106,7 @@ export default function RegisterPage() {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -116,12 +119,12 @@ export default function RegisterPage() {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Min. 6 characters"
+                placeholder={t("auth.passwordPlaceholder")}
                 autoComplete="new-password"
                 {...register("password")}
               />
@@ -144,12 +147,12 @@ export default function RegisterPage() {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
             <div className="relative">
               <Input
                 id="confirmPassword"
                 type={showConfirmPassword ? "text" : "password"}
-                placeholder="Re-enter your password"
+                placeholder={t("auth.confirmPasswordPlaceholder")}
                 autoComplete="new-password"
                 {...register("confirmPassword")}
               />
@@ -179,10 +182,10 @@ export default function RegisterPage() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
+                {t("auth.creatingAccount")}
               </>
             ) : (
-              "Create account"
+              t("auth.createAccountButton")
             )}
           </Button>
         </form>

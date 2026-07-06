@@ -9,6 +9,7 @@ import {
   BarChart3,
   Wallet,
   History,
+  Settings,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -28,17 +29,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { logout } from "@/lib/actions";
+import { useI18n } from "@/components/i18n-provider";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Upload CV", href: "/upload", icon: FileUp },
-  { title: "Analytics", href: "/analytics", icon: BarChart3 },
-  { title: "Top Up", href: "/topup", icon: Wallet },
-  { title: "History", href: "/credit-history", icon: History },
+const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutDashboard }> = [
+  { titleKey: "common.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { titleKey: "common.uploadCv", href: "/upload", icon: FileUp },
+  { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
+  { titleKey: "common.topUp", href: "/topup", icon: Wallet },
+  { titleKey: "common.history", href: "/credit-history", icon: History },
+  { titleKey: "settings.title", href: "/settings", icon: Settings },
 ];
 
-const adminNavItems = [
-  { title: "Top-Up Requests", href: "/admin/topup-requests", icon: ShieldCheck },
+const adminNavItems: Array<{ titleKey: MessageKey; href: string; icon: typeof ShieldCheck }> = [
+  { titleKey: "nav.topupRequests", href: "/admin/topup-requests", icon: ShieldCheck },
 ];
 
 interface AppSidebarProps {
@@ -48,6 +52,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isAdmin }: AppSidebarProps) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
+  const { t } = useI18n();
 
   return (
     <Sidebar collapsible="icon">
@@ -68,19 +73,20 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("common.navigation")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
                 const isActive =
                   pathname === item.href ||
                   pathname.startsWith(item.href + "/");
+                const title = t(item.titleKey);
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      tooltip={item.title}
+                      tooltip={title}
                       className="transition-colors duration-200 data-[active=true]:bg-gradient-to-r data-[active=true]:from-primary/10 data-[active=true]:to-violet-100 data-[active=true]:text-primary data-[active=true]:font-medium"
                     >
                       <Link
@@ -88,7 +94,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
                         onClick={() => setOpenMobile(false)}
                       >
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span>{title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -100,19 +106,20 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupLabel>{t("common.admin")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminNavItems.map((item) => {
                   const isActive =
                     pathname === item.href ||
                     pathname.startsWith(item.href + "/");
+                  const title = t(item.titleKey);
                   return (
-                    <SidebarMenuItem key={item.title}>
+                    <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        tooltip={item.title}
+                        tooltip={title}
                         className="transition-colors duration-200 data-[active=true]:bg-gradient-to-r data-[active=true]:from-primary/10 data-[active=true]:to-violet-100 data-[active=true]:text-primary data-[active=true]:font-medium"
                       >
                         <Link
@@ -120,7 +127,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
                           onClick={() => setOpenMobile(false)}
                         >
                           <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span>{title}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -143,7 +150,7 @@ export function AppSidebar({ isAdmin }: AppSidebarProps) {
           >
             <LogOut className="h-4 w-4" />
             <span className="group-data-[collapsible=icon]:hidden">
-              Sign out
+              {t("common.signOut")}
             </span>
           </Button>
         </form>

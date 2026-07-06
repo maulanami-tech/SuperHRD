@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
@@ -41,6 +40,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Candidate } from "@/lib/types";
+import { useI18n } from "@/components/i18n-provider";
+import { formatRelativeDate } from "@/lib/i18n/format";
 
 interface CreditBalance {
   creditBalance: number;
@@ -50,12 +51,12 @@ interface CreditBalance {
 
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
 
-const statusFilters: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "processing", label: "Processing" },
-  { value: "completed", label: "Completed" },
-  { value: "failed", label: "Failed" },
+const statusFilters: { value: StatusFilter; labelKey: "statuses.all" | "statuses.pending" | "statuses.processing" | "statuses.completed" | "statuses.failed" }[] = [
+  { value: "all", labelKey: "statuses.all" },
+  { value: "pending", labelKey: "statuses.pending" },
+  { value: "processing", labelKey: "statuses.processing" },
+  { value: "completed", labelKey: "statuses.completed" },
+  { value: "failed", labelKey: "statuses.failed" },
 ];
 
 const toneClasses = {
@@ -118,21 +119,20 @@ function ScreeningPipeline({
   completed: number;
   failed: number;
 }) {
+  const { t } = useI18n();
   const stages = [
-    { label: "Pending", value: pending, className: "bg-slate-700" },
-    { label: "Processing", value: processing, className: "bg-blue-600" },
-    { label: "Completed", value: completed, className: "bg-emerald-600" },
-    { label: "Failed", value: failed, className: "bg-red-600" },
+    { label: t("statuses.pending"), value: pending, className: "bg-slate-700" },
+    { label: t("statuses.processing"), value: processing, className: "bg-blue-600" },
+    { label: t("statuses.completed"), value: completed, className: "bg-emerald-600" },
+    { label: t("statuses.failed"), value: failed, className: "bg-red-600" },
   ];
   const total = stages.reduce((sum, stage) => sum + stage.value, 0);
 
   return (
     <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
       <CardHeader className="gap-1">
-        <CardTitle className="text-base text-slate-950">Screening pipeline</CardTitle>
-        <CardDescription>
-          Current candidate flow by review status.
-        </CardDescription>
+        <CardTitle className="text-base text-slate-950">{t("dashboard.screeningPipeline")}</CardTitle>
+        <CardDescription>{t("dashboard.screeningPipelineDesc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
@@ -167,6 +167,8 @@ function ScreeningPipeline({
 }
 
 function CandidateMobileList({ candidates }: { candidates: Candidate[] }) {
+  const { locale, t } = useI18n();
+
   return (
     <div className="space-y-3 md:hidden">
       {candidates.map((candidate) => (
@@ -181,7 +183,7 @@ function CandidateMobileList({ candidates }: { candidates: Candidate[] }) {
                 {candidate.name}
               </h3>
               <p className="mt-1 truncate text-sm text-slate-500">
-                {candidate.email || "No email"}
+                {candidate.email || t("common.noEmail")}
               </p>
             </div>
             <ScoreBadge score={candidate.overallScore} size="sm" />
@@ -189,7 +191,7 @@ function CandidateMobileList({ candidates }: { candidates: Candidate[] }) {
           <div className="mt-4 grid gap-2 text-sm text-slate-600">
             <div className="flex min-w-0 items-center gap-2">
               <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
-              <span className="truncate">{candidate.posisi || "No position"}</span>
+              <span className="truncate">{candidate.posisi || t("common.noPosition")}</span>
             </div>
             <div className="flex min-w-0 items-center gap-2">
               <FileText className="h-4 w-4 shrink-0 text-slate-400" />
@@ -199,9 +201,7 @@ function CandidateMobileList({ candidates }: { candidates: Candidate[] }) {
           <div className="mt-4 flex items-center justify-between gap-3">
             <StatusBadge status={candidate.status} />
             <span className="text-xs text-slate-500">
-              {formatDistanceToNow(new Date(candidate.createdAt), {
-                addSuffix: true,
-              })}
+              {formatRelativeDate(candidate.createdAt, locale)}
             </span>
           </div>
         </Link>
@@ -211,6 +211,7 @@ function CandidateMobileList({ candidates }: { candidates: Candidate[] }) {
 }
 
 export default function DashboardPage() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const batchId = searchParams.get("batchId") ?? "";
   const [balance, setBalance] = useState<CreditBalance | null>(null);
@@ -285,11 +286,11 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Header title="Dashboard" description="Operational view for CV screening">
+      <Header title={t("dashboard.title")} description={t("dashboard.description")}>
         <Button asChild size="sm" className="bg-slate-950 text-white hover:bg-slate-800">
           <Link href="/upload">
             <Upload className="mr-2 h-4 w-4" />
-            Upload CV
+            {t("common.uploadCv")}
           </Link>
         </Button>
       </Header>
@@ -300,23 +301,23 @@ export default function DashboardPage() {
             <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-blue-700">SuperHRD screening desk</p>
+                  <p className="text-sm font-medium text-blue-700">{t("dashboard.desk")}</p>
                   <h2 className="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                    Review candidates, spot blockers, and keep screening moving.
+                    {t("dashboard.heroTitle")}
                   </h2>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                    Use this page to monitor candidate throughput, failed screenings, and score readiness before moving into detailed review.
+                    {t("dashboard.heroDescription")}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
                   <Button asChild className="bg-blue-700 text-white hover:bg-blue-800">
                     <Link href="/upload">
-                      Upload CV
+                      {t("common.uploadCv")}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" className="border-slate-300">
-                    <Link href="/analytics">Open analytics</Link>
+                    <Link href="/analytics">{t("dashboard.openAnalytics")}</Link>
                   </Button>
                 </div>
               </div>
@@ -333,29 +334,29 @@ export default function DashboardPage() {
 
           <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Active screening"
+              label={t("dashboard.activeScreening")}
               value={stats.active}
-              description="Pending and processing candidates."
+              description={t("dashboard.activeScreeningDesc")}
               icon={Clock3}
               tone="blue"
             />
             <StatCard
-              label="Total candidates"
+              label={t("dashboard.totalCandidates")}
               value={stats.total}
-              description={`${stats.todayCount} submitted today.`}
+              description={t("dashboard.submittedToday", { count: stats.todayCount })}
               icon={Users}
             />
             <StatCard
-              label="Completion rate"
+              label={t("dashboard.completionRate")}
               value={`${stats.completionRate}%`}
-              description={`${stats.completed} candidates completed.`}
+              description={t("dashboard.completedDesc", { count: stats.completed })}
               icon={CheckCircle2}
               tone="emerald"
             />
             <StatCard
-              label="Needs attention"
+              label={t("dashboard.needsAttention")}
               value={stats.failed}
-              description="Failed screenings to inspect."
+              description={t("dashboard.needsAttentionDesc")}
               icon={AlertCircle}
               tone="red"
             />
@@ -372,20 +373,18 @@ export default function DashboardPage() {
 
               <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
                 <CardHeader className="gap-1">
-                  <CardTitle className="text-base text-slate-950">Score signal</CardTitle>
-                  <CardDescription>
-                    Average score from completed screenings.
-                  </CardDescription>
+                  <CardTitle className="text-base text-slate-950">{t("dashboard.scoreSignal")}</CardTitle>
+                  <CardDescription>{t("dashboard.scoreSignalDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-end gap-3">
                     <div className="text-4xl font-semibold tracking-tight text-slate-950">
                       {stats.averageScore}
                     </div>
-                    <div className="pb-1 text-sm text-slate-500">average score</div>
+                    <div className="pb-1 text-sm text-slate-500">{t("dashboard.averageScore")}</div>
                   </div>
                   <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    Completed screenings are the only records included in this score.
+                    {t("dashboard.scoreHelp")}
                   </div>
                 </CardContent>
               </Card>
@@ -396,17 +395,15 @@ export default function DashboardPage() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <CardTitle className="text-lg text-slate-950">
-                      {batchId ? "Batch candidates" : "Candidate queue"}
+                      {batchId ? t("dashboard.batchCandidates") : t("dashboard.candidateQueue")}
                     </CardTitle>
                     <CardDescription className="mt-1">
-                      {batchId
-                        ? "Showing candidates from the selected ZIP batch."
-                        : "Recent candidates with status, score, and submitted time."}
+                      {batchId ? t("dashboard.batchCandidatesDesc") : t("dashboard.candidateQueueDesc")}
                     </CardDescription>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     <BarChart3 className="h-4 w-4 text-blue-700" />
-                    {candidates.length} visible
+                    {candidates.length} {t("common.visible")}
                   </div>
                 </div>
 
@@ -414,7 +411,7 @@ export default function DashboardPage() {
                   <div className="relative min-w-0">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <Input
-                      placeholder="Search name or email"
+                      placeholder={t("dashboard.searchPlaceholder")}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       className="border-slate-200 bg-white pl-9"
@@ -422,12 +419,12 @@ export default function DashboardPage() {
                   </div>
                   <Select value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
                     <SelectTrigger className="w-full border-slate-200 bg-white">
-                      <SelectValue placeholder="All statuses" />
+                      <SelectValue placeholder={t("dashboard.allStatuses")} />
                     </SelectTrigger>
                     <SelectContent>
                       {statusFilters.map((item) => (
                         <SelectItem key={item.value} value={item.value}>
-                          {item.label === "All" ? "All statuses" : item.label}
+                          {item.value === "all" ? t("dashboard.allStatuses") : t(item.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -446,7 +443,7 @@ export default function DashboardPage() {
                         className={isActive ? "bg-slate-950 text-white hover:bg-slate-800" : "border-slate-300 bg-white"}
                         onClick={() => setStatus(item.value)}
                       >
-                        {item.label}
+                        {t(item.labelKey)}
                       </Button>
                     );
                   })}

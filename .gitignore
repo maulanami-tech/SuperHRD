@@ -71,3 +71,4 @@ qa-reports/
 
 # mcp config (contains secrets/tokens)
 .mcp.json
+.gstack/

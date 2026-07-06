@@ -1,45 +1,100 @@
 import { z } from "zod";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { translate } from "@/lib/i18n/messages";
 
-export const loginSchema = z.object({
-  email: z.email(),
-  password: z.string().min(1, "Password is required"),
-});
+function tv(locale: Locale, key: Parameters<typeof translate>[1]) {
+  return translate(locale, key);
+}
 
-export const registerSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100, "Name is too long"),
-  email: z.email(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(1, "Please confirm your password"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+export function createLoginSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    email: z.email(),
+    password: z.string().min(1, tv(locale, "validation.passwordRequired")),
+  });
+}
 
-export const uploadSchema = z.object({
-  name: z.string().min(1, "Candidate name is required").max(200, "Name is too long"),
-  email: z.email().optional(),
-  posisi: z.string().min(1, "Position is required").max(200, "Position is too long"),
-  kriteria: z.string().min(1, "Evaluation criteria is required").max(5000, "Criteria is too long"),
-  prompt: z.string().min(1, "Prompt is required").max(5000, "Prompt is too long"),
-});
+export function createRegisterSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    name: z.string().min(1, tv(locale, "validation.nameRequired")).max(100, tv(locale, "validation.nameTooLong")),
+    email: z.email(),
+    password: z.string().min(6, tv(locale, "validation.passwordMin")),
+    confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: tv(locale, "validation.passwordsMismatch"),
+    path: ["confirmPassword"],
+  });
+}
 
-export const batchUploadSchema = uploadSchema.pick({
-  posisi: true,
-  kriteria: true,
-  prompt: true,
-});
+export function createForgotPasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    email: z.email(tv(locale, "validation.validEmail")),
+  });
+}
 
-export const fileSchema = z.object({
-  type: z.string().refine(
-    (t) => [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ].includes(t),
-    { message: "Only PDF, DOC, and DOCX files are allowed" }
-  ),
-  size: z.number().max(10 * 1024 * 1024, "File size must be under 10MB"),
-});
+export function createResetPasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    password: z.string().min(6, tv(locale, "validation.passwordMin")),
+    confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: tv(locale, "validation.passwordsMismatch"),
+    path: ["confirmPassword"],
+  });
+}
+
+export function createChangePasswordSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    currentPassword: z.string().min(1, tv(locale, "validation.currentPasswordRequired")),
+    newPassword: z.string().min(6, tv(locale, "validation.passwordMin")),
+    confirmPassword: z.string().min(1, tv(locale, "validation.confirmPassword")),
+  }).refine((data) => data.newPassword === data.confirmPassword, {
+    message: tv(locale, "validation.passwordsMismatch"),
+    path: ["confirmPassword"],
+  }).refine((data) => data.newPassword !== data.currentPassword, {
+    message: tv(locale, "validation.newPasswordSameAsOld"),
+    path: ["newPassword"],
+  });
+}
+
+export function createUploadSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    name: z.string().min(1, tv(locale, "validation.candidateNameRequired")).max(200, tv(locale, "validation.nameTooLong")),
+    email: z.email().optional(),
+    posisi: z.string().min(1, tv(locale, "validation.positionRequired")).max(200, tv(locale, "validation.positionTooLong")),
+    kriteria: z.string().min(1, tv(locale, "validation.criteriaRequired")).max(5000, tv(locale, "validation.criteriaTooLong")),
+    prompt: z.string().min(1, tv(locale, "validation.promptRequired")).max(5000, tv(locale, "validation.promptTooLong")),
+  });
+}
+
+export function createBatchUploadSchema(locale: Locale = defaultLocale) {
+  return createUploadSchema(locale).pick({
+    posisi: true,
+    kriteria: true,
+    prompt: true,
+  });
+}
+
+export function createFileSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    type: z.string().refine(
+      (t) => [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ].includes(t),
+      { message: tv(locale, "validation.fileType") }
+    ),
+    size: z.number().max(10 * 1024 * 1024, tv(locale, "validation.fileSize")),
+  });
+}
+
+export const loginSchema = createLoginSchema();
+export const registerSchema = createRegisterSchema();
+export const forgotPasswordSchema = createForgotPasswordSchema();
+export const resetPasswordSchema = createResetPasswordSchema();
+export const changePasswordSchema = createChangePasswordSchema();
+export const uploadSchema = createUploadSchema();
+export const batchUploadSchema = createBatchUploadSchema();
+export const fileSchema = createFileSchema();
 
 export const n8nCallbackSchema = z.object({
   runId: z.string().min(1),
@@ -61,6 +116,9 @@ export const n8nCallbackSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
 export type BatchUploadInput = z.infer<typeof batchUploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;
