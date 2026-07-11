@@ -317,6 +317,9 @@ export default function DashboardPage() {
                     </Link>
                   </Button>
                   <Button asChild variant="outline" className="border-slate-300">
+                    <Link href="/recruitment">{t("dashboard.openRecruitment")}</Link>
+                  </Button>
+                  <Button asChild variant="outline" className="border-slate-300">
                     <Link href="/analytics">{t("dashboard.openAnalytics")}</Link>
                   </Button>
                 </div>

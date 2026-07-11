@@ -8,6 +8,37 @@ export interface ScreeningResult {
   scoredAt: string;
 }
 
+export type CandidateFieldType = "number" | "currency" | "text" | "date";
+
+export interface PipelineStage {
+  id: string;
+  ownerId: string;
+  name: string;
+  color: string;
+  order: number;
+  isTerminal: boolean;
+  createdAt: string;
+  candidateCount?: number;
+}
+
+export interface CandidateFieldDefinition {
+  id: string;
+  ownerId: string;
+  label: string;
+  type: CandidateFieldType;
+  order: number;
+  createdAt: string;
+}
+
+export interface CandidateFieldValue {
+  id: string;
+  candidateId: string;
+  fieldDefinitionId: string;
+  valueNumber: number | null;
+  valueText: string | null;
+  valueDate: string | null;
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -22,6 +53,10 @@ export interface Candidate {
   n8nRunId: string | null;
   batchId: string | null;
   jobPositionId: string | null;
+  pipelineStageId: string | null;
+  pipelineStage: PipelineStage | null;
+  fieldValues: CandidateFieldValue[];
+  notes: string | null;
   submittedBy: string;
   submittedById: string;
   createdAt: string;

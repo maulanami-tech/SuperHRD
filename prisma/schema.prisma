@@ -27,6 +27,8 @@ model User {
   topupRequests           TopupRequest[]
   uploadBatches           UploadBatch[]
   jobPositions            JobPosition[]
+  pipelineStages          PipelineStage[]
+  candidateFieldDefinitions CandidateFieldDefinition[]
 }
 
 model EmailVerificationToken {
@@ -71,6 +73,10 @@ model Candidate {
   batch           UploadBatch?     @relation(fields: [batchId], references: [id])
   jobPositionId   String?
   jobPosition     JobPosition?     @relation(fields: [jobPositionId], references: [id], onDelete: SetNull)
+  pipelineStageId String?
+  pipelineStage   PipelineStage?   @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
+  fieldValues     CandidateFieldValue[]
+  notes           String?
   submittedBy     String
   submittedById   String
   submittedByUser User             @relation(fields: [submittedById], references: [id])
@@ -80,6 +86,55 @@ model Candidate {
 
   @@index([batchId])
   @@index([jobPositionId])
+  @@index([pipelineStageId])
+}
+
+model PipelineStage {
+  id         String      @id @default(cuid())
+  ownerId    String
+  owner      User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name       String
+  color      String      @default("slate")
+  order      Int
+  isTerminal Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  candidates Candidate[]
+
+  @@index([ownerId, order])
+}
+
+enum CandidateFieldType {
+  number
+  currency
+  text
+  date
+}
+
+model CandidateFieldDefinition {
+  id        String                @id @default(cuid())
+  ownerId   String
+  owner     User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  label     String
+  type      CandidateFieldType
+  order     Int
+  createdAt DateTime              @default(now())
+  values    CandidateFieldValue[]
+
+  @@index([ownerId, order])
+}
+
+model CandidateFieldValue {
+  id                String                   @id @default(cuid())
+  candidateId       String
+  candidate         Candidate                @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  fieldDefinitionId String
+  fieldDefinition   CandidateFieldDefinition @relation(fields: [fieldDefinitionId], references: [id], onDelete: Cascade)
+  valueNumber       Float?
+  valueText         String?
+  valueDate         DateTime?
+
+  @@unique([candidateId, fieldDefinitionId])
+  @@index([fieldDefinitionId])
 }
 
 model UploadBatch {

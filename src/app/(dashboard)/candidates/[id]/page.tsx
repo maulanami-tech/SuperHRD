@@ -13,12 +13,14 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import type { Candidate, CriteriaItem } from "@/lib/types";
 import { isProcessingTimedOut } from "@/lib/candidate-status";
 import { StatusBadge } from "@/components/status-badge";
 import { ScoreBadge } from "@/components/score-badge";
+import { PipelineStageBadge } from "@/components/pipeline-stage-badge";
 import { ScreeningResults } from "@/components/screening-results";
 import { CandidateDetailSkeleton } from "@/components/loading-skeleton";
 import { Header } from "@/components/header";
@@ -30,6 +32,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -50,6 +54,8 @@ export default function CandidateDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const fetchCandidate = useCallback(async () => {
     try {
@@ -74,6 +80,43 @@ export default function CandidateDetailPage() {
   useEffect(() => {
     fetchRef.current = fetchCandidate;
   }, [fetchCandidate]);
+
+  const notesInitialized = useRef(false);
+  useEffect(() => {
+    if (candidate && !notesInitialized.current) {
+      setNotesDraft(candidate.notes ?? "");
+      notesInitialized.current = true;
+    }
+  }, [candidate]);
+
+  const handleSaveNotes = useCallback(async () => {
+    if (!candidate) return;
+    setSavingNotes(true);
+    try {
+      const res = await fetch(`/api/candidates/${candidate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notesDraft }),
+      });
+      if (!res.ok) {
+        let message = "Failed to save notes";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          // non-JSON response — keep default message
+        }
+        toast.error(message);
+        return;
+      }
+      setCandidate((prev) => (prev ? { ...prev, notes: notesDraft } : prev));
+      toast.success("Notes saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save notes");
+    } finally {
+      setSavingNotes(false);
+    }
+  }, [candidate, notesDraft]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -243,8 +286,24 @@ export default function CandidateDetailPage() {
                   by {candidate.submittedBy}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={candidate.status} />
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    AI Status
+                  </span>
+                  <StatusBadge status={candidate.status} />
+                </div>
+                {candidate.pipelineStage && (
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Pipeline Stage
+                    </span>
+                    <PipelineStageBadge
+                      name={candidate.pipelineStage.name}
+                      color={candidate.pipelineStage.color}
+                    />
+                  </div>
+                )}
                 <ScoreBadge score={candidate.overallScore} size="lg" />
               </div>
             </div>
@@ -273,6 +332,50 @@ export default function CandidateDetailPage() {
                   {new Date(candidate.createdAt).toLocaleDateString()}
                 </span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base">Recruitment stage</CardTitle>
+                <CardDescription>
+                  Manage this candidate&apos;s hiring stage and details on the Recruitment board.
+                </CardDescription>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/recruitment">Open Recruitment board</Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="candidate-notes">Notes</Label>
+              <Textarea
+                id="candidate-notes"
+                placeholder="Add interview notes or context for this candidate..."
+                rows={4}
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+              >
+                {savingNotes ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save notes"
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>

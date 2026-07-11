@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -19,23 +19,56 @@ export default function SettingsPage() {
   const { locale, t } = useI18n();
 
   return (
-    <div className="flex flex-col">
-      <Header title={t("settings.title")} description={t("settings.description")} />
-      <main className="flex-1 space-y-6 p-4 pb-24 md:p-6 md:pb-6">
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-primary" />
-              {t("settings.changePasswordTitle")}
-            </CardTitle>
-            <CardDescription>{t("settings.changePasswordDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChangePasswordForm locale={locale} />
-          </CardContent>
-        </Card>
+    <>
+      <Header
+        title={t("settings.title")}
+        description={t("settings.description")}
+        breadcrumb={[
+          { label: t("common.dashboard"), href: "/dashboard" },
+          { label: t("settings.title") },
+        ]}
+      />
+      <main className="min-w-0 flex-1 overflow-x-hidden bg-slate-50/70 p-4 pb-28 md:p-6 md:pb-8">
+        <div className="mx-auto grid w-full max-w-4xl min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <Card className="min-w-0 gap-0 rounded-lg border-slate-200 bg-white shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 text-white">
+                  <KeyRound className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <CardTitle className="text-base text-slate-950">
+                    {t("settings.changePasswordTitle")}
+                  </CardTitle>
+                  <CardDescription className="mt-1 leading-6">
+                    {t("settings.changePasswordDescription")}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <ChangePasswordForm locale={locale} />
+            </CardContent>
+          </Card>
+
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+              <CardHeader className="gap-1">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-950">
+                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                  {t("settings.securityTipsTitle")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
+                <p>{t("settings.securityTip1")}</p>
+                <p>{t("settings.securityTip2")}</p>
+                <p>{t("settings.securityTip3")}</p>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
       </main>
-    </div>
+    </>
   );
 }
 
@@ -126,7 +159,7 @@ function ChangePasswordForm({ locale }: { locale: ReturnType<typeof useI18n>["lo
       ))}
       <Button
         type="submit"
-        className="bg-gradient-to-r from-primary to-violet-600 transition-all hover:from-primary/90 hover:to-violet-600/90 hover:shadow-lg hover:shadow-primary/25"
+        className="bg-blue-700 text-white hover:bg-blue-800"
         disabled={loading}
       >
         {loading ? (

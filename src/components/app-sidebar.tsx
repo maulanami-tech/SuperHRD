@@ -13,6 +13,7 @@ import {
   Settings,
   TicketPercent,
   Briefcase,
+  Columns3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,6 +39,7 @@ const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutD
   { titleKey: "common.dashboard", href: "/dashboard", icon: LayoutDashboard },
   { titleKey: "common.uploadCv", href: "/upload", icon: FileUp },
   { titleKey: "positions.navTitle", href: "/positions", icon: Briefcase },
+  { titleKey: "recruitment.navTitle", href: "/recruitment", icon: Columns3 },
   { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
   { titleKey: "common.topUp", href: "/topup", icon: Wallet },
   { titleKey: "common.history", href: "/credit-history", icon: History },

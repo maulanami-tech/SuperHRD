@@ -152,6 +152,56 @@ export function createJobPositionUpdateSchema(locale: Locale = defaultLocale) {
 export const jobPositionSchema = createJobPositionSchema();
 export const jobPositionUpdateSchema = createJobPositionUpdateSchema();
 
+export const stageColorEnum = z.enum([
+  "slate",
+  "blue",
+  "indigo",
+  "violet",
+  "pink",
+  "amber",
+  "emerald",
+  "red",
+]);
+
+export const pipelineStageSchema = z.object({
+  name: z.string().min(1, "Stage name is required").max(100, "Stage name is too long"),
+  color: stageColorEnum.default("slate"),
+});
+
+export const pipelineStageUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  color: stageColorEnum.optional(),
+  order: z.number().int().min(0).optional(),
+});
+
+export const fieldTypeEnum = z.enum(["number", "currency", "text", "date"]);
+
+export const candidateFieldDefinitionSchema = z.object({
+  label: z.string().min(1, "Field label is required").max(100, "Field label is too long"),
+  type: fieldTypeEnum,
+});
+
+export const candidateFieldDefinitionUpdateSchema = z.object({
+  label: z.string().min(1).max(100).optional(),
+  order: z.number().int().min(0).optional(),
+});
+
+export const candidatePatchSchema = z.object({
+  pipelineStageId: z.string().min(1).nullable().optional(),
+  notes: z.string().max(2000).optional(),
+  fieldValues: z
+    .array(
+      z.object({
+        fieldDefinitionId: z.string().min(1),
+        value: z.union([z.string(), z.number(), z.null()]),
+      })
+    )
+    .optional(),
+}).refine(
+  (data) => data.pipelineStageId !== undefined || data.notes !== undefined || data.fieldValues !== undefined,
+  { message: "At least one field must be provided" }
+);
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -163,3 +213,8 @@ export type BatchUploadInput = z.infer<typeof batchUploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;
 export type JobPositionInput = z.infer<typeof jobPositionSchema>;
 export type JobPositionUpdateInput = z.infer<typeof jobPositionUpdateSchema>;
+export type PipelineStageInput = z.infer<typeof pipelineStageSchema>;
+export type PipelineStageUpdateInput = z.infer<typeof pipelineStageUpdateSchema>;
+export type CandidateFieldDefinitionInput = z.infer<typeof candidateFieldDefinitionSchema>;
+export type CandidateFieldDefinitionUpdateInput = z.infer<typeof candidateFieldDefinitionUpdateSchema>;
+export type CandidatePatchInput = z.infer<typeof candidatePatchSchema>;

@@ -95,6 +95,10 @@ export const messages = {
       description: "Manage your account settings",
       changePasswordTitle: "Change password",
       changePasswordDescription: "Update the password you use to sign in. You will be signed out on all devices afterwards.",
+      securityTipsTitle: "Keep your account safe",
+      securityTip1: "Use a password of at least 8 characters mixing letters, numbers, and symbols.",
+      securityTip2: "Avoid reusing passwords from other services or sharing them with teammates.",
+      securityTip3: "Changing your password signs you out everywhere, so you can cut off unknown sessions.",
     },
     dashboard: {
       title: "Dashboard",
@@ -104,6 +108,7 @@ export const messages = {
       heroDescription:
         "Use this page to monitor candidate throughput, failed screenings, and score readiness before moving into detailed review.",
       openAnalytics: "Open analytics",
+      openRecruitment: "Recruitment board",
       activeScreening: "Active screening",
       activeScreeningDesc: "Pending and processing candidates.",
       totalCandidates: "Total candidates",
@@ -288,6 +293,9 @@ export const messages = {
       createSuccess: "Position created",
       updateSuccess: "Position updated",
       deleteSuccess: "Position deleted",
+    },
+    recruitment: {
+      navTitle: "Recruitment",
     },
     adminOverview: {
       title: "Overview",
@@ -477,6 +485,10 @@ export const messages = {
       description: "Kelola pengaturan akun Anda",
       changePasswordTitle: "Ganti kata sandi",
       changePasswordDescription: "Perbarui kata sandi yang Anda gunakan untuk masuk. Anda akan keluar dari semua perangkat setelahnya.",
+      securityTipsTitle: "Jaga keamanan akun Anda",
+      securityTip1: "Gunakan kata sandi minimal 8 karakter dengan kombinasi huruf, angka, dan simbol.",
+      securityTip2: "Hindari memakai ulang kata sandi dari layanan lain atau membagikannya ke rekan kerja.",
+      securityTip3: "Mengganti kata sandi akan mengeluarkan Anda dari semua perangkat, berguna untuk memutus sesi tak dikenal.",
     },
     dashboard: {
       title: "Dasbor",
@@ -486,6 +498,7 @@ export const messages = {
       heroDescription:
         "Gunakan halaman ini untuk memantau throughput kandidat, screening gagal, dan kesiapan skor sebelum masuk ke review detail.",
       openAnalytics: "Buka analitik",
+      openRecruitment: "Papan rekrutmen",
       activeScreening: "Screening aktif",
       activeScreeningDesc: "Kandidat pending dan sedang diproses.",
       totalCandidates: "Total kandidat",
@@ -670,6 +683,9 @@ export const messages = {
       createSuccess: "Posisi berhasil dibuat",
       updateSuccess: "Posisi berhasil diperbarui",
       deleteSuccess: "Posisi berhasil dihapus",
+    },
+    recruitment: {
+      navTitle: "Rekrutmen",
     },
     adminOverview: {
       title: "Overview",
