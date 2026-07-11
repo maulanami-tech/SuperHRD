@@ -5,6 +5,7 @@ import type { Candidate } from "@/lib/types";
 
 interface UseCandidatesOptions {
   batchId?: string;
+  jobPositionId?: string;
   search?: string;
   status?: string;
   pollingInterval?: number;
@@ -19,6 +20,7 @@ interface UseCandidatesReturn {
 
 export function useCandidates({
   batchId = "",
+  jobPositionId = "",
   search = "",
   status = "",
   pollingInterval = 10000,
@@ -32,6 +34,7 @@ export function useCandidates({
     try {
       const params = new URLSearchParams();
       if (batchId) params.set("batchId", batchId);
+      if (jobPositionId) params.set("jobPositionId", jobPositionId);
       if (search) params.set("search", search);
       if (status) params.set("status", status);
 
@@ -50,7 +53,7 @@ export function useCandidates({
         isFirstLoad.current = false;
       }
     }
-  }, [batchId, search, status]);
+  }, [batchId, jobPositionId, search, status]);
 
   const fetchRef = useRef(fetchCandidates);
   useEffect(() => {

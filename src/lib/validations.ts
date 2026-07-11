@@ -134,6 +134,24 @@ export const n8nCallbackSchema = z.object({
   error: z.string().max(5000).optional(),
 });
 
+export function createJobPositionSchema(locale: Locale = defaultLocale) {
+  return z.object({
+    title: z.string().min(1, tv(locale, "validation.positionRequired")).max(200, tv(locale, "validation.positionTooLong")),
+    description: z.string().max(2000, tv(locale, "validation.descriptionTooLong")).optional().or(z.literal("")),
+    kriteria: z.string().min(1, tv(locale, "validation.criteriaRequired")).max(5000, tv(locale, "validation.criteriaTooLong")),
+    prompt: z.string().min(1, tv(locale, "validation.promptRequired")).max(5000, tv(locale, "validation.promptTooLong")),
+  });
+}
+
+export function createJobPositionUpdateSchema(locale: Locale = defaultLocale) {
+  return createJobPositionSchema(locale).partial().extend({
+    status: z.enum(["open", "closed", "archived"]).optional(),
+  });
+}
+
+export const jobPositionSchema = createJobPositionSchema();
+export const jobPositionUpdateSchema = createJobPositionUpdateSchema();
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -143,3 +161,5 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UploadInput = z.infer<typeof uploadSchema>;
 export type BatchUploadInput = z.infer<typeof batchUploadSchema>;
 export type N8nCallbackInput = z.infer<typeof n8nCallbackSchema>;
+export type JobPositionInput = z.infer<typeof jobPositionSchema>;
+export type JobPositionUpdateInput = z.infer<typeof jobPositionUpdateSchema>;

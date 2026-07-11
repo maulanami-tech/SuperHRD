@@ -95,7 +95,39 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const candidateValidation = uploadSchema.safeParse({ name, email, posisi, kriteria, prompt });
+  // Handle jobPositionId if provided
+  const jobPositionId = (formData.get("jobPositionId") as string | null) || null;
+  let resolvedJobPositionId: string | null = null;
+  let posisiForValidation = posisi;
+  let criteriaForValidation = kriteria;
+  let promptForValidation = prompt;
+
+  if (jobPositionId) {
+    const position = await prisma.jobPosition.findFirst({
+      where: { id: jobPositionId, ownerId: session.user.id, status: "open" },
+    });
+
+    if (!position) {
+      return NextResponse.json(
+        { error: "Position not found or not open" },
+        { status: 400 }
+      );
+    }
+
+    // Override with position values
+    resolvedJobPositionId = position.id;
+    posisiForValidation = position.title;
+    criteriaForValidation = position.kriteria;
+    promptForValidation = position.prompt;
+  }
+
+  const candidateValidation = uploadSchema.safeParse({
+    name,
+    email,
+    posisi: posisiForValidation,
+    kriteria: criteriaForValidation,
+    prompt: promptForValidation,
+  });
   if (!candidateValidation.success) {
     return NextResponse.json(
       { error: candidateValidation.error.issues[0].message },
@@ -154,6 +186,7 @@ export async function POST(req: NextRequest) {
       posisi: candidateValidation.data.posisi,
       kriteria: candidateValidation.data.kriteria,
       prompt: candidateValidation.data.prompt,
+      jobPositionId: resolvedJobPositionId,
       fileName: file.name,
       filePath,
       status: "pending",

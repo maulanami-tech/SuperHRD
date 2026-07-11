@@ -11,6 +11,7 @@ import {
   Wallet,
   Settings,
   TicketPercent,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-provider";
@@ -19,6 +20,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutDashboard }> = [
   { titleKey: "common.dashboard", href: "/dashboard", icon: LayoutDashboard },
   { titleKey: "nav.upload", href: "/upload", icon: FileUp },
+  { titleKey: "positions.navTitle", href: "/positions", icon: Briefcase },
   { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
   { titleKey: "common.topUp", href: "/topup", icon: Wallet },
   { titleKey: "common.history", href: "/credit-history", icon: History },

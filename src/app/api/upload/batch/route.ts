@@ -67,9 +67,11 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  const posisi = (formData.get("posisi") as string) ?? "";
-  const kriteria = (formData.get("kriteria") as string) ?? "";
-  const prompt = (formData.get("prompt") as string) ?? "";
+  const jobPositionId = (formData.get("jobPositionId") as string | null) || null;
+  let posisi = (formData.get("posisi") as string) ?? "";
+  let kriteria = (formData.get("kriteria") as string) ?? "";
+  let prompt = (formData.get("prompt") as string) ?? "";
+  let resolvedJobPositionId: string | null = null;
 
   if (!file) {
     return NextResponse.json({ error: "ZIP file is required" }, { status: 400 });
@@ -80,6 +82,26 @@ export async function POST(req: NextRequest) {
       { error: "Only ZIP files up to 50MB are allowed" },
       { status: 400 }
     );
+  }
+
+  // Handle jobPositionId if provided
+  if (jobPositionId) {
+    const position = await prisma.jobPosition.findFirst({
+      where: { id: jobPositionId, ownerId: session.user.id, status: "open" },
+    });
+
+    if (!position) {
+      return NextResponse.json(
+        { error: "Position not found or not open" },
+        { status: 400 }
+      );
+    }
+
+    // Override with position values
+    resolvedJobPositionId = position.id;
+    posisi = position.title;
+    kriteria = position.kriteria;
+    prompt = position.prompt;
   }
 
   const validation = batchUploadSchema.safeParse({ posisi, kriteria, prompt });
@@ -171,6 +193,7 @@ export async function POST(req: NextRequest) {
       posisi: validation.data.posisi,
       kriteria: validation.data.kriteria,
       prompt: validation.data.prompt,
+      jobPositionId: resolvedJobPositionId,
       totalFiles: validFiles.length + invalidFiles.length,
       acceptedFiles: validFiles.length,
       rejectedFiles: invalidFiles.length,
@@ -209,6 +232,7 @@ export async function POST(req: NextRequest) {
         posisi: validation.data.posisi,
         kriteria: validation.data.kriteria,
         prompt: validation.data.prompt,
+        jobPositionId: resolvedJobPositionId,
         fileName: cv.fileName,
         filePath,
         status: "pending",

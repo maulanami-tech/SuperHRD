@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const batchId = searchParams.get("batchId");
+  const jobPositionId = searchParams.get("jobPositionId");
   const search = searchParams.get("search");
   const status = searchParams.get("status");
 
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
     where: {
       submittedById: session.user.id,
       ...(batchId && { batchId }),
+      ...(jobPositionId && { jobPositionId }),
       ...(search && {
         OR: [
           { name: { contains: search } },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,11 +8,14 @@ import {
   Archive,
   AlertTriangle,
   ArrowRight,
+  Briefcase,
   CheckCircle2,
   FileArchive,
   FileText,
   Info,
   Loader2,
+  PlusCircle,
+  Save,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -38,8 +41,17 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { PositionFormDialog } from "@/components/positions/position-form-dialog";
+import type { JobPositionListItem } from "@/lib/types";
 
  type BatchInvalidFile = {
   fileName: string;
@@ -274,6 +286,9 @@ function BatchSummaryCard({
   );
 }
 
+const CUSTOM_POSITION = "__custom__";
+const CREATE_POSITION = "__create__";
+
 export default function UploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -286,10 +301,37 @@ export default function UploadPage() {
   const [posisiValue, setPosisiValue] = useState("");
   const [batchPosisiValue, setBatchPosisiValue] = useState("");
 
+  const [positions, setPositions] = useState<JobPositionListItem[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(true);
+  const [selectedPositionId, setSelectedPositionId] = useState<string>(CUSTOM_POSITION);
+  const [batchSelectedPositionId, setBatchSelectedPositionId] = useState<string>(CUSTOM_POSITION);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogTarget, setCreateDialogTarget] = useState<UploadMode>("single");
+  const [savingToPosition, setSavingToPosition] = useState(false);
+  const [batchSavingToPosition, setBatchSavingToPosition] = useState(false);
+
+  const fetchPositions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/positions?status=open");
+      if (!res.ok) return;
+      const data = await res.json();
+      setPositions(data);
+    } catch {
+      // Position list is optional; upload still works without it.
+    } finally {
+      setPositionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPositions();
+  }, [fetchPositions]);
+
   const {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<UploadInput>({
     resolver: zodResolver(uploadSchema),
@@ -306,6 +348,7 @@ export default function UploadPage() {
     register: registerBatch,
     handleSubmit: handleBatchSubmit,
     setValue: setBatchValue,
+    watch: watchBatch,
     formState: { errors: batchErrors },
   } = useForm<BatchUploadInput>({
     resolver: zodResolver(batchUploadSchema),
@@ -315,6 +358,84 @@ export default function UploadPage() {
       prompt: "",
     },
   });
+
+  const kriteriaValue = watch("kriteria");
+  const promptValue = watch("prompt");
+  const batchKriteriaValue = watchBatch("kriteria");
+  const batchPromptValue = watchBatch("prompt");
+
+  function selectPosition(mode: UploadMode, value: string) {
+    if (value === CREATE_POSITION) {
+      setCreateDialogTarget(mode);
+      setCreateDialogOpen(true);
+      return;
+    }
+
+    if (mode === "batch") {
+      setBatchSelectedPositionId(value);
+      if (value === CUSTOM_POSITION) {
+        setBatchValue("posisi", "");
+        setBatchPosisiValue("");
+        return;
+      }
+      const position = positions.find((p) => p.id === value);
+      if (position) {
+        setBatchValue("posisi", position.title, { shouldValidate: true });
+        setBatchValue("kriteria", position.kriteria, { shouldValidate: true });
+        setBatchValue("prompt", position.prompt, { shouldValidate: true });
+        setBatchPosisiValue(position.title);
+      }
+    } else {
+      setSelectedPositionId(value);
+      if (value === CUSTOM_POSITION) {
+        setValue("posisi", "");
+        setPosisiValue("");
+        return;
+      }
+      const position = positions.find((p) => p.id === value);
+      if (position) {
+        setValue("posisi", position.title, { shouldValidate: true });
+        setValue("kriteria", position.kriteria, { shouldValidate: true });
+        setValue("prompt", position.prompt, { shouldValidate: true });
+        setPosisiValue(position.title);
+      }
+    }
+  }
+
+  function handlePositionCreated(created: JobPositionListItem) {
+    setPositions((prev) => [created, ...prev]);
+    selectPosition(createDialogTarget, created.id);
+  }
+
+  async function saveToPosition(mode: UploadMode) {
+    const isBatch = mode === "batch";
+    const positionId = isBatch ? batchSelectedPositionId : selectedPositionId;
+    if (positionId === CUSTOM_POSITION || positionId === CREATE_POSITION) return;
+
+    const kriteria = isBatch ? batchKriteriaValue : kriteriaValue;
+    const prompt = isBatch ? batchPromptValue : promptValue;
+
+    if (isBatch) setBatchSavingToPosition(true);
+    else setSavingToPosition(true);
+
+    try {
+      const res = await fetch(`/api/positions/${positionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kriteria, prompt }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to save to position");
+
+      setPositions((prev) => prev.map((p) => (p.id === positionId ? { ...p, kriteria, prompt } : p)));
+      toast.success("Saved to position. Future uploads will reuse this criteria.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save to position");
+    } finally {
+      if (isBatch) setBatchSavingToPosition(false);
+      else setSavingToPosition(false);
+    }
+  }
 
   async function generatePrompt(mode: UploadMode) {
     const isBatch = mode === "batch";
@@ -381,6 +502,9 @@ export default function UploadPage() {
       formData.append("posisi", data.posisi);
       formData.append("kriteria", data.kriteria);
       formData.append("prompt", data.prompt);
+      if (selectedPositionId !== CUSTOM_POSITION && selectedPositionId !== CREATE_POSITION) {
+        formData.append("jobPositionId", selectedPositionId);
+      }
       formData.append("file", file);
 
       const res = await fetch("/api/upload", {
@@ -416,6 +540,9 @@ export default function UploadPage() {
       formData.append("posisi", data.posisi);
       formData.append("kriteria", data.kriteria);
       formData.append("prompt", data.prompt);
+      if (batchSelectedPositionId !== CUSTOM_POSITION && batchSelectedPositionId !== CREATE_POSITION) {
+        formData.append("jobPositionId", batchSelectedPositionId);
+      }
       formData.append("file", batchFile);
 
       const res = await fetch("/api/upload/batch", {
@@ -596,18 +723,57 @@ export default function UploadPage() {
                       >
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="posisi">
-                              Position <RequiredMark />
+                            <Label htmlFor="position-picker-single">
+                              Job Position <RequiredMark />
                             </Label>
-                            <Input
-                              id="posisi"
-                              placeholder="e.g. Senior Backend Developer"
-                              {...register("posisi", {
-                                onChange: (event) => setPosisiValue(event.target.value),
-                              })}
-                            />
-                            <FieldError message={errors.posisi?.message} />
+                            <Select
+                              value={selectedPositionId}
+                              onValueChange={(value) => selectPosition("single", value)}
+                            >
+                              <SelectTrigger id="position-picker-single" className="w-full">
+                                <SelectValue placeholder="Select a job position" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={CUSTOM_POSITION}>
+                                  <FileText className="h-4 w-4" />
+                                  Custom (one-off role)
+                                </SelectItem>
+                                {!positionsLoading && positions.length > 0 && (
+                                  <>
+                                    {positions.map((position) => (
+                                      <SelectItem key={position.id} value={position.id}>
+                                        <Briefcase className="h-4 w-4" />
+                                        {position.title}
+                                      </SelectItem>
+                                    ))}
+                                  </>
+                                )}
+                                <SelectItem value={CREATE_POSITION}>
+                                  <PlusCircle className="h-4 w-4" />
+                                  Create new position...
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-slate-500">
+                              Reuse a saved position to skip retyping criteria, or choose custom for a one-off role.
+                            </p>
                           </div>
+
+                          {selectedPositionId === CUSTOM_POSITION && (
+                            <div className="space-y-2">
+                              <Label htmlFor="posisi">
+                                Position title <RequiredMark />
+                              </Label>
+                              <Input
+                                id="posisi"
+                                placeholder="e.g. Senior Backend Developer"
+                                {...register("posisi", {
+                                  onChange: (event) => setPosisiValue(event.target.value),
+                                })}
+                              />
+                              <FieldError message={errors.posisi?.message} />
+                            </div>
+                          )}
 
                           <AiSetupPanel
                             mode="single"
@@ -643,6 +809,30 @@ export default function UploadPage() {
                               <FieldError message={errors.prompt?.message} />
                             </div>
                           </div>
+
+                          {selectedPositionId !== CUSTOM_POSITION && selectedPositionId !== CREATE_POSITION && (
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={savingToPosition}
+                                onClick={() => saveToPosition("single")}
+                              >
+                                {savingToPosition ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save to position
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </FormSection>
 
@@ -704,18 +894,57 @@ export default function UploadPage() {
                         description="All CVs in this ZIP will use the same role and screening criteria."
                       >
                         <div className="space-y-2">
-                          <Label htmlFor="batch-posisi">
-                            Position <RequiredMark />
+                          <Label htmlFor="position-picker-batch">
+                            Job Position <RequiredMark />
                           </Label>
-                          <Input
-                            id="batch-posisi"
-                            placeholder="e.g. Senior Backend Developer"
-                            {...registerBatch("posisi", {
-                              onChange: (event) => setBatchPosisiValue(event.target.value),
-                            })}
-                          />
-                          <FieldError message={batchErrors.posisi?.message} />
+                          <Select
+                            value={batchSelectedPositionId}
+                            onValueChange={(value) => selectPosition("batch", value)}
+                          >
+                            <SelectTrigger id="position-picker-batch" className="w-full">
+                              <SelectValue placeholder="Select a job position" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={CUSTOM_POSITION}>
+                                <FileText className="h-4 w-4" />
+                                Custom (one-off role)
+                              </SelectItem>
+                              {!positionsLoading && positions.length > 0 && (
+                                <>
+                                  {positions.map((position) => (
+                                    <SelectItem key={position.id} value={position.id}>
+                                      <Briefcase className="h-4 w-4" />
+                                      {position.title}
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              )}
+                              <SelectItem value={CREATE_POSITION}>
+                                <PlusCircle className="h-4 w-4" />
+                                Create new position...
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-slate-500">
+                            Reuse a saved position to skip retyping criteria, or choose custom for a one-off role.
+                          </p>
                         </div>
+
+                        {batchSelectedPositionId === CUSTOM_POSITION && (
+                          <div className="space-y-2">
+                            <Label htmlFor="batch-posisi">
+                              Position title <RequiredMark />
+                            </Label>
+                            <Input
+                              id="batch-posisi"
+                              placeholder="e.g. Senior Backend Developer"
+                              {...registerBatch("posisi", {
+                                onChange: (event) => setBatchPosisiValue(event.target.value),
+                              })}
+                            />
+                            <FieldError message={batchErrors.posisi?.message} />
+                          </div>
+                        )}
                       </FormSection>
 
                       <FormSection
@@ -758,6 +987,30 @@ export default function UploadPage() {
                               <FieldError message={batchErrors.prompt?.message} />
                             </div>
                           </div>
+
+                          {batchSelectedPositionId !== CUSTOM_POSITION && batchSelectedPositionId !== CREATE_POSITION && (
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={batchSavingToPosition}
+                                onClick={() => saveToPosition("batch")}
+                              >
+                                {batchSavingToPosition ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save to position
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </FormSection>
 
@@ -817,6 +1070,22 @@ export default function UploadPage() {
           </Tabs>
         </div>
       </main>
+
+      <PositionFormDialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) {
+            if (createDialogTarget === "single" && selectedPositionId === CREATE_POSITION) {
+              setSelectedPositionId(CUSTOM_POSITION);
+            }
+            if (createDialogTarget === "batch" && batchSelectedPositionId === CREATE_POSITION) {
+              setBatchSelectedPositionId(CUSTOM_POSITION);
+            }
+          }
+        }}
+        onSaved={handlePositionCreated}
+      />
     </>
   );
 }

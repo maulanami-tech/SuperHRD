@@ -12,6 +12,7 @@ import {
   History,
   Settings,
   TicketPercent,
+  Briefcase,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,6 +37,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 const navItems: Array<{ titleKey: MessageKey; href: string; icon: typeof LayoutDashboard }> = [
   { titleKey: "common.dashboard", href: "/dashboard", icon: LayoutDashboard },
   { titleKey: "common.uploadCv", href: "/upload", icon: FileUp },
+  { titleKey: "positions.navTitle", href: "/positions", icon: Briefcase },
   { titleKey: "common.analytics", href: "/analytics", icon: BarChart3 },
   { titleKey: "common.topUp", href: "/topup", icon: Wallet },
   { titleKey: "common.history", href: "/credit-history", icon: History },
