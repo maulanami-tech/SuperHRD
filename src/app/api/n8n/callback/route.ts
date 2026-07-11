@@ -87,9 +87,25 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Auto-assign to first pipeline stage if not already assigned
+      let pipelineStageId = lockedCandidate.pipelineStageId;
+      if (!pipelineStageId) {
+        const firstStage = await tx.pipelineStage.findFirst({
+          where: { ownerId: lockedCandidate.submittedById },
+          orderBy: { order: "asc" },
+        });
+        if (firstStage) {
+          pipelineStageId = firstStage.id;
+        }
+      }
+
       await tx.candidate.update({
         where: { id: lockedCandidate.id },
-        data: { status: "completed", overallScore },
+        data: { 
+          status: "completed", 
+          overallScore,
+          pipelineStageId,
+        },
       });
 
       return { success: true };

@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
   const candidates = await prisma.candidate.findMany({
     where: {
       submittedById: session.user.id,
+      status: "completed",
       ...(Object.keys(scoreWhere).length > 0 && { overallScore: scoreWhere }),
       ...(fieldFilterClauses.length > 0 && { AND: fieldFilterClauses }),
     },

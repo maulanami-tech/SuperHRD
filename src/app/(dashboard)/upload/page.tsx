@@ -519,7 +519,7 @@ export default function UploadPage() {
       }
 
       toast.success("CV uploaded! AI screening in progress.");
-      router.push("/dashboard");
+      router.push("/recruitment");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -573,9 +573,7 @@ export default function UploadPage() {
           result.rejectedFiles ? `, ${result.rejectedFiles} skipped` : ""
         }.`
       );
-      if (!result.rejectedFiles) {
-        router.push(`/dashboard?batchId=${result.batchId}`);
-      }
+      router.push("/recruitment");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Batch upload failed");
     } finally {
