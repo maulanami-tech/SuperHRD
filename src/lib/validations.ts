@@ -38,10 +38,16 @@ export function createPromoCodeSchema(locale: Locale = defaultLocale) {
       .min(3, tv(locale, "validation.promoCodeFormat"))
       .max(32, tv(locale, "validation.promoCodeFormat"))
       .regex(/^[A-Za-z0-9_-]+$/, tv(locale, "validation.promoCodeFormat")),
-    creditAmount: z.number().int().min(1).max(100000),
+    type: z.enum(["registration", "topup", "any"]).default("registration"),
+    creditAmount: z.number().int().min(0).max(100000).default(0),
+    bonusPercent: z.number().int().min(1).max(100).nullable().optional(),
+    discountPercent: z.number().int().min(1).max(100).nullable().optional(),
     maxRedemptions: z.number().int().min(1).max(1000000).nullable().optional(),
     expiresAt: z.iso.datetime().nullable().optional(),
-  });
+  }).refine(
+    (d) => d.creditAmount > 0 || (d.bonusPercent != null && d.bonusPercent > 0),
+    { message: tv(locale, "validation.promoBonusRequired"), path: ["creditAmount"] }
+  );
 }
 
 export function createForgotPasswordSchema(locale: Locale = defaultLocale) {

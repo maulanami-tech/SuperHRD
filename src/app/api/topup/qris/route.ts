@@ -6,6 +6,7 @@ import { topupRequestSchema } from '@/lib/zod-schemas/credits';
 import { addMinutes } from 'date-fns';
 import { BUNDLES } from '@/lib/credits';
 import { createMidtransOrderId, createPaymentLink } from '@/lib/midtrans';
+import { findRedeemablePromoCode, computeTopupPromoBonus } from '@/lib/promo';
 
 const TOPUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -45,11 +46,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { amountIdr } = validation.data;
+    const { amountIdr, promoCode } = validation.data;
+    const normalizedPromoCode = promoCode?.trim().toUpperCase() || null;
 
     const bundle = BUNDLES.find((b) => b.amountIdr === amountIdr);
     if (!bundle) {
       return NextResponse.json({ error: 'Invalid bundle' }, { status: 400 });
+    }
+
+    // Validate promo code if provided
+    let resolvedPromo: Awaited<ReturnType<typeof findRedeemablePromoCode>> = null;
+    if (normalizedPromoCode) {
+      resolvedPromo = await findRedeemablePromoCode(normalizedPromoCode, prisma, 'topup');
+      if (!resolvedPromo) {
+        return NextResponse.json({ error: 'invalid_promo_code' }, { status: 400 });
+      }
+      // Check this user hasn't already used this code
+      const alreadyUsed = await prisma.promoRedemption.findUnique({
+        where: { userId_codeId: { userId: session.user.id, codeId: resolvedPromo.id } },
+      });
+      if (alreadyUsed) {
+        return NextResponse.json({ error: 'promo_already_used' }, { status: 400 });
+      }
     }
 
     const existingPending = await prisma.topupRequest.findFirst({
@@ -86,16 +104,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const topupRequest = await prisma.topupRequest.create({
-      data: {
-        userId: session.user.id,
-        amountIdr,
-        creditAmount: bundle.credits,
-        paymentMethod: 'qris',
-        paymentProvider: 'midtrans',
-        status: 'pending',
-        expiresAt: addMinutes(new Date(), getTopupExpiryMinutes()),
-      },
+    const promoBonusCredits = resolvedPromo
+      ? computeTopupPromoBonus(resolvedPromo, bundle.credits)
+      : 0;
+
+    const topupRequest = await prisma.$transaction(async (tx) => {
+      const created = await tx.topupRequest.create({
+        data: {
+          userId: session.user.id,
+          amountIdr,
+          creditAmount: bundle.credits,
+          paymentMethod: 'qris',
+          paymentProvider: 'midtrans',
+          status: 'pending',
+          expiresAt: addMinutes(new Date(), getTopupExpiryMinutes()),
+          promoCodeId: resolvedPromo?.id ?? null,
+        },
+      });
+
+      if (resolvedPromo && promoBonusCredits > 0) {
+        await tx.promoRedemption.create({
+          data: {
+            codeId: resolvedPromo.id,
+            userId: session.user.id,
+            creditAmount: promoBonusCredits,
+            context: 'topup',
+            status: 'pending',
+          },
+        });
+      }
+
+      return created;
     });
 
     const orderId = createMidtransOrderId(topupRequest.id);
@@ -132,6 +171,7 @@ export async function POST(req: NextRequest) {
         qrString: updatedTopup.qrString,
         paymentUrl: updatedTopup.qrCodeUrl,
         expiresAt: updatedTopup.expiresAt,
+        promoBonusCredits: promoBonusCredits > 0 ? promoBonusCredits : undefined,
         message: 'Payment link created. Credits will be released after payment succeeds.',
       });
     } catch (error) {

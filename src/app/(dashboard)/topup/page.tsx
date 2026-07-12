@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Tag,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -149,6 +150,8 @@ export default function TopupPage() {
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [payment, setPayment] = useState<PaymentLinkTopup | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoBonusCredits, setPromoBonusCredits] = useState<number | null>(null);
   const statusCopy = getPaymentStatusCopy(payment);
   const StatusIcon = statusCopy.icon;
 
@@ -223,14 +226,25 @@ export default function TopupPage() {
         body: JSON.stringify({
           amountIdr: selectedBundle,
           paymentMethod: "qris",
+          promoCode: promoCode.trim().toUpperCase() || undefined,
         }),
       });
 
-      const data: PaymentLinkTopup & { error?: string } = await res.json();
+      const data: PaymentLinkTopup & { error?: string; promoBonusCredits?: number } = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || t("topup.createPaymentLinkFailed"));
+        if (data.error === "invalid_promo_code") {
+          toast.error(t("validation.invalidPromoCode"));
+        } else if (data.error === "promo_already_used") {
+          toast.error(t("validation.promoAlreadyUsed"));
+        } else {
+          throw new Error(data.error || t("topup.createPaymentLinkFailed"));
+        }
+        return;
       }
 
+      if (data.promoBonusCredits) {
+        setPromoBonusCredits(data.promoBonusCredits);
+      }
       setPayment(data);
       toast.success(t("topup.paymentLinkCreated"));
     } catch (error) {
@@ -486,6 +500,32 @@ export default function TopupPage() {
                     <p className="mt-1 text-sm text-slate-500">
                       {selectedBundleInfo ? t("topup.creditsAddedAfterApproval", { count: selectedBundleInfo.credits }) : t("topup.chooseBundle")}
                     </p>
+                  </div>
+
+                  {/* Promo code input */}
+                  <div className="mt-4">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={(e) => {
+                            setPromoCode(e.target.value.toUpperCase());
+                            setPromoBonusCredits(null);
+                          }}
+                          placeholder="PROMO CODE (optional)"
+                          maxLength={32}
+                          disabled={payment?.status === "pending"}
+                          className="flex h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 py-1 text-sm font-mono uppercase shadow-sm transition-colors placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                    {promoBonusCredits && promoBonusCredits > 0 && (
+                      <p className="mt-1.5 text-xs font-medium text-emerald-600">
+                        ✓ Promo applied — +{promoBonusCredits} bonus credits after payment
+                      </p>
+                    )}
                   </div>
 
                   <Button

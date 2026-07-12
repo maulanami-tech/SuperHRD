@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { TopupStatus } from '@/generated/prisma/client';
+import { claimTopupPromoRedemption } from '@/lib/promo';
 
 export const WIB_TIMEZONE = 'Asia/Jakarta';
 export const DAILY_QUOTA_LIMIT = 5;
@@ -437,6 +438,7 @@ export async function approveTopup(
   success: boolean;
   newBalance: number;
   creditAmount: number;
+  promoBonusCredits: number;
 }> {
   // Atomic approval: check status and update topup + user balance + record transaction
   // All reads and writes happen inside the transaction to prevent TOCTOU races
@@ -452,6 +454,7 @@ export async function approveTopup(
           },
         },
       },
+      // include promoCodeId for promo bonus claim
     });
 
     if (!topup) {
@@ -469,6 +472,7 @@ export async function approveTopup(
       return {
         newBalance: topup.user.creditBalance,
         creditAmount: bundle.credits,
+        promoBonusCredits: 0,
       };
     }
 
@@ -553,9 +557,22 @@ export async function approveTopup(
       },
     });
 
+    // Claim topup promo bonus if one was attached
+    let promoBonusCredits = 0;
+    if (topup.promoCodeId) {
+      const promoClaim = await claimTopupPromoRedemption(topup.userId, topup.promoCodeId, tx);
+      if (promoClaim) {
+        promoBonusCredits = promoClaim.creditAmount;
+        console.info(
+          `[PROMO] Topup promo claimed: +${promoClaim.creditAmount} credits from ${promoClaim.code} for userId=${topup.userId}`
+        );
+      }
+    }
+
     return {
-      newBalance: user.creditBalance,
+      newBalance: user.creditBalance + promoBonusCredits,
       creditAmount: bundle.credits,
+      promoBonusCredits,
     };
   });
 
@@ -563,6 +580,7 @@ export async function approveTopup(
     success: true,
     newBalance: result.newBalance,
     creditAmount: result.creditAmount,
+    promoBonusCredits: result.promoBonusCredits,
   };
 }
 

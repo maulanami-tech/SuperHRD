@@ -10,6 +10,12 @@ export const topupRequestSchema = z.object({
   ),
   paymentMethod: z.enum(['qris', 'stripe']),
   proofImageUrl: z.string().url().optional(),
+  promoCode: z.string()
+    .trim()
+    .max(32)
+    .regex(/^[A-Za-z0-9_-]*$/)
+    .optional()
+    .or(z.literal("")),
 });
 
 export const adminTopupActionSchema = z.object({

@@ -22,7 +22,7 @@ model User {
   candidates              Candidate[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
-  promoRedemption         PromoRedemption?
+  promoRedemptions        PromoRedemption[]
   transactions            Transaction[]
   topupRequests           TopupRequest[]
   uploadBatches           UploadBatch[]
@@ -180,16 +180,26 @@ enum TransactionType {
   promo_bonus
 }
 
+enum PromoCodeType {
+  registration
+  topup
+  any
+}
+
 model PromoCode {
-  id             String            @id @default(cuid())
-  code           String            @unique
-  creditAmount   Int
-  maxRedemptions Int?
-  expiresAt      DateTime?
-  active         Boolean           @default(true)
-  createdBy      String
-  createdAt      DateTime          @default(now())
-  redemptions    PromoRedemption[]
+  id              String            @id @default(cuid())
+  code            String            @unique
+  type            PromoCodeType     @default(registration)
+  creditAmount    Int               @default(0)
+  discountPercent Int?
+  bonusPercent    Int?
+  maxRedemptions  Int?
+  expiresAt       DateTime?
+  active          Boolean           @default(true)
+  createdBy       String
+  createdAt       DateTime          @default(now())
+  redemptions     PromoRedemption[]
+  topupRequests   TopupRequest[]
 
   @@index([active, expiresAt])
 }
@@ -203,13 +213,15 @@ model PromoRedemption {
   id           String                @id @default(cuid())
   codeId       String
   code         PromoCode             @relation(fields: [codeId], references: [id], onDelete: Cascade)
-  userId       String                @unique
+  userId       String
   user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   creditAmount Int
+  context      String                @default("registration")
   status       PromoRedemptionStatus @default(pending)
   createdAt    DateTime              @default(now())
   claimedAt    DateTime?
 
+  @@unique([userId, codeId])
   @@index([codeId, status])
 }
 
@@ -262,6 +274,8 @@ model TopupRequest {
   qrCodeUrl             String?
   qrString              String?
   providerPayload       String?
+  promoCodeId           String?
+  promoCode             PromoCode?    @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([status, createdAt])

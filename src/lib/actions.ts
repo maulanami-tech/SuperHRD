@@ -118,6 +118,7 @@ export async function registerUser(data: RegisterInput, requestedLocale: Locale 
               codeId: promo.id,
               userId: created.id,
               creditAmount: promo.creditAmount,
+              context: "registration",
             },
           });
         }
