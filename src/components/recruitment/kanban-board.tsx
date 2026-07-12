@@ -32,41 +32,51 @@ interface KanbanBoardProps {
   onCandidateUpdated: (candidate: Candidate) => void;
 }
 
+const UNASSIGNED_STAGE_ID = "__unassigned__";
+
 function KanbanColumn({
-  stage,
+  id,
+  name,
+  color,
   candidates,
   fields,
   onEditStage,
   onCardClick,
+  emptyLabel = "Drop candidates here",
 }: {
-  stage: PipelineStage;
+  id: string;
+  name: string;
+  color: string;
   candidates: Candidate[];
   fields: CandidateFieldDefinition[];
-  onEditStage: () => void;
+  onEditStage?: () => void;
   onCardClick: (candidate: Candidate) => void;
+  emptyLabel?: string;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const { setNodeRef, isOver } = useDroppable({ id });
 
   return (
     <div className="flex w-72 shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-100/80 shadow-sm">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${stageDotClasses[stage.color as StageColor] ?? stageDotClasses.slate}`} />
-          <p className="truncate text-sm font-semibold text-slate-900">{stage.name}</p>
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${stageDotClasses[color as StageColor] ?? stageDotClasses.slate}`} />
+          <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
           <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-500/15">
             {candidates.length}
           </span>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onEditStage}>Edit stage</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {onEditStage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onEditStage}>Edit stage</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       <div
         ref={setNodeRef}
@@ -82,7 +92,7 @@ function KanbanColumn({
         ))}
         {candidates.length === 0 && (
           <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-slate-300 text-xs text-slate-400">
-            Drop candidates here
+            {emptyLabel}
           </div>
         )}
       </div>
@@ -111,8 +121,11 @@ export function KanbanBoard({
     if (!over) return;
 
     const candidate = candidates.find((c) => c.id === active.id);
-    const targetStageId = String(over.id);
-    if (!candidate || candidate.pipelineStageId === targetStageId) return;
+    if (!candidate) return;
+
+    const droppedOnUnassigned = over.id === UNASSIGNED_STAGE_ID;
+    const targetStageId = droppedOnUnassigned ? null : String(over.id);
+    if ((candidate.pipelineStageId ?? null) === targetStageId) return;
 
     try {
       const res = await fetch(`/api/candidates/${candidate.id}`, {
@@ -144,14 +157,29 @@ export function KanbanBoard({
     onStagesChange(stages.filter((s) => s.id !== id));
   }
 
+  const unassignedCandidates = candidates.filter((c) => !c.pipelineStageId);
+
   return (
     <div>
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
+          {unassignedCandidates.length > 0 && (
+            <KanbanColumn
+              id={UNASSIGNED_STAGE_ID}
+              name="Unassigned"
+              color="slate"
+              candidates={unassignedCandidates}
+              fields={fields}
+              onCardClick={openCardDrawer}
+              emptyLabel="Drag here to unassign"
+            />
+          )}
           {stages.map((stage) => (
             <KanbanColumn
               key={stage.id}
-              stage={stage}
+              id={stage.id}
+              name={stage.name}
+              color={stage.color}
               candidates={candidates.filter((c) => c.pipelineStageId === stage.id)}
               fields={fields}
               onEditStage={() => {
